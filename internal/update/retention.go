@@ -16,10 +16,10 @@ func CleanupArtifacts(dataDir string) {
 }
 
 // Run only after 24 hours of healthy operation. Always preserve the current,
-// previous successful and builtin versions, regardless of directory timestamps.
-func CleanupRetainedVersions(dataDir, current, previous, builtin string) {
+// previous successful and Docker image versions, regardless of directory timestamps.
+func CleanupRetainedVersions(dataDir, current, previous, imageVersion string) {
 	protected := map[string]bool{}
-	for _, version := range []string{current, previous, builtin} {
+	for _, version := range []string{current, previous, imageVersion} {
 		if version != "" {
 			protected[version] = true
 			protected["v"+version] = true

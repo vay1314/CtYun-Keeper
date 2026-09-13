@@ -382,7 +382,12 @@ pre { height: 58vh; margin: 0; padding: 18px; overflow: auto; border: 1px solid 
 .update-status { margin: 14px 0 0; padding: 9px 12px; border-radius: 9px; font-size: .8rem; font-weight: 650; }
 .update-status.success { color: var(--green); background: var(--green-soft); }
 .update-status.warning { color: var(--amber); background: var(--amber-soft); }
+.update-status.error { color: var(--error-text); background: var(--red-soft); }
 .update-status.neutral { color: var(--muted); background: #f0f3f7; }
+.update-message-queue { display: grid; gap: 8px; margin-top: 14px; }
+.update-message-queue:empty { display: none; }
+.update-message-queue .update-status { margin: 0; opacity: 0; transform: translateY(-5px); transition: opacity .2s ease, transform .2s ease; }
+.update-message-queue .update-status.is-visible { opacity: 1; transform: translateY(0); }
 .update-proxy-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; margin-top: 16px; }
 .update-proxy-form label { gap: 6px; }
 .update-proxy-form button { height: 44px; }
@@ -454,6 +459,7 @@ html[data-theme="dark"] .settings-card-head .panel-icon.neutral { color: #aab7c8
 html[data-theme="dark"] .deployment-facts div { border-color: var(--line); background: #172439; }
 html[data-theme="dark"] .deployment-facts dd, html[data-theme="dark"] .info-panel dl.service-facts dd { color: var(--text); }
 html[data-theme="dark"] .update-status.neutral { background: var(--neutral-soft); }
+html[data-theme="dark"] .update-status.error { background: var(--red-soft); }
 html[data-theme="dark"] .update-progress-state { background: #172439; }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }

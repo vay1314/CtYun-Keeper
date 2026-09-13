@@ -247,7 +247,7 @@ func main() {
 			continue
 		}
 		update.WriteExecutorProgress(request, update.StatusInstalling, "正在切换运行版本")
-		previous, target, err := applyUpdate(request, versionsDir, currentLink)
+		previous, target, err := applyUpdate(request, versionsDir, currentLink, builtinDir)
 		if err != nil {
 			writeResult(request, "failed", err.Error())
 			log.Printf("容器内更新失败: %v", err)
@@ -321,6 +321,10 @@ func loadVersion(dir string) (versionInfo, error) {
 	}
 	if err := json.Unmarshal(data, &info); err != nil {
 		return info, err
+	}
+	info.Version = strings.TrimSpace(info.Version)
+	if info.Version == "" {
+		return info, errors.New("version.json 缺少版本")
 	}
 	if _, ok := update.ParseSemVer(info.Version); !ok && !update.IsDevVersion(info.Version) {
 		return info, errors.New("version.json 版本无效")
@@ -444,8 +448,8 @@ func consumeRequest(dataDir, current string) (update.InstallRequest, error) {
 	return request, nil
 }
 
-func applyUpdate(req update.InstallRequest, versionsDir, currentLink string) (string, string, error) {
-	if err := verifyInstallPolicy(req); err != nil {
+func applyUpdate(req update.InstallRequest, versionsDir, currentLink, builtinDir string) (string, string, error) {
+	if err := verifyInstallPolicy(req, builtinDir); err != nil {
 		return "", "", err
 	}
 	if !launcherCompatible(req.MinimumLauncherVersion) {
@@ -623,18 +627,22 @@ func validatePending(pending *pendingUpdate, dataDir, builtinDir, versionsDir st
 	if err := req.Validate(dataDir, pending.Previous, req.Token); err != nil {
 		return err
 	}
-	return verifyInstallPolicy(req)
+	return verifyInstallPolicy(req, builtinDir)
 }
 
-func verifyInstallPolicy(req update.InstallRequest) error {
+func verifyInstallPolicy(req update.InstallRequest, builtinDir string) error {
 	manifest, err := update.VerifySignedRequestManifest(req, trustedUpdatePublicKey(), "linux-"+runtime.GOARCH)
 	if err != nil {
 		return err
 	}
+	builtin, err := loadVersion(builtinDir)
+	if err != nil {
+		return fmt.Errorf("读取镜像内置版本失败: %w", err)
+	}
 	platform := update.Platform{
 		OS: "linux", Arch: runtime.GOARCH, InDocker: true,
 		LauncherVersion: launcherVersion,
-		ImageVersion:    strings.TrimSpace(os.Getenv("CTYUN_IMAGE_VERSION")),
+		ImageVersion:    builtin.Version,
 	}
 	return manifest.CompatibleWith(req.FromVersion, platform)
 }

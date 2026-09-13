@@ -88,12 +88,15 @@ func TestInstallPolicyEnforcesSignedImageRequirement(t *testing.T) {
 	t.Cleanup(func() { updatePublicKey, launcherVersion = originalKey, originalLauncher })
 	updatePublicKey = base64.StdEncoding.EncodeToString(publicKey)
 	launcherVersion = "1.0.0"
-	t.Setenv("CTYUN_IMAGE_VERSION", "2.1.0")
-	if err := verifyInstallPolicy(req); err == nil {
+	builtinDir := t.TempDir()
+	writeTestVersion(t, builtinDir, "2.1.0")
+	t.Setenv("CTYUN_IMAGE_VERSION", "2.2.0")
+	if err := verifyInstallPolicy(req, builtinDir); err == nil {
 		t.Fatal("signed requiresImageUpdate policy was ignored")
 	}
-	t.Setenv("CTYUN_IMAGE_VERSION", "2.2.0")
-	if err := verifyInstallPolicy(req); err != nil {
+	writeTestVersion(t, builtinDir, "2.2.0")
+	t.Setenv("CTYUN_IMAGE_VERSION", "2.1.0")
+	if err := verifyInstallPolicy(req, builtinDir); err != nil {
 		t.Fatalf("matching updated image was rejected: %v", err)
 	}
 }

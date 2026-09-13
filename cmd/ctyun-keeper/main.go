@@ -136,7 +136,7 @@ running:
 						}
 					}
 				}
-				update.CleanupRetainedVersions(dataDir, version, previous, os.Getenv("CTYUN_BUILTIN_VERSION"))
+				update.CleanupRetainedVersions(dataDir, version, previous, update.CurrentPlatform().ImageVersion)
 				update.CleanupArtifacts(dataDir)
 				nextCleanup = time.Now().Add(24 * time.Hour)
 			}

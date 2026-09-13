@@ -165,6 +165,55 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 })();
 
+const seenUpdateMessages = new Set();
+
+const waitForUpdateMessage = (milliseconds) =>
+  new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+const showUpdateMessage = async (message) => {
+  const queue = document.querySelector("[data-update-message-queue]");
+  if (!queue) return;
+  const item = document.createElement("div");
+  item.className = `update-status ${message.level}`;
+  item.setAttribute("role", message.level === "error" ? "alert" : "status");
+  item.textContent = message.text;
+  queue.append(item);
+  await new Promise((resolve) => window.requestAnimationFrame(resolve));
+  item.classList.add("is-visible");
+  await waitForUpdateMessage(message.duration);
+  item.classList.remove("is-visible");
+  await waitForUpdateMessage(220);
+  item.remove();
+};
+
+const enqueueUpdateMessage = (text, level = "neutral", duration = 4000) => {
+  const normalizedText = String(text || "").trim();
+  const normalizedLevel = ["success", "warning", "error", "neutral"].includes(level)
+    ? level
+    : "neutral";
+  if (!normalizedText || !document.querySelector("[data-update-message-queue]")) return;
+  const key = `${normalizedLevel}\n${normalizedText}`;
+  if (seenUpdateMessages.has(key)) return;
+  seenUpdateMessages.add(key);
+  void showUpdateMessage({ text: normalizedText, level: normalizedLevel, duration });
+};
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-update-message]").forEach((item) => {
+    const level = ["success", "warning", "error", "neutral"].find((value) =>
+      item.classList.contains(value),
+    );
+    enqueueUpdateMessage(item.textContent, level, Number(item.dataset.duration) || 4000);
+    item.remove();
+  });
+  const currentURL = new URL(window.location.href);
+  if (currentURL.searchParams.has("update_message") || currentURL.searchParams.has("update_level")) {
+    currentURL.searchParams.delete("update_message");
+    currentURL.searchParams.delete("update_level");
+    window.history.replaceState({}, "", currentURL);
+  }
+});
+
 // HTMX continues polling while the process restarts. Reload the deployment facts
 // once the executor reports a terminal result, including after automatic rollback.
 (() => {
@@ -177,6 +226,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if ((restarting || node.dataset.version !== document.body.dataset.appVersion) && node.matches('.success, .failed, .rolled_back')) {
       restarting = false;
       window.location.reload();
+      return;
+    }
+    if (node.matches('.available, .success, .failed, .rolled_back')) {
+      let level = 'success';
+      if (node.matches('.failed')) level = 'error';
+      if (node.matches('.rolled_back')) level = 'warning';
+      const duration = level === 'error' ? 6000 : level === 'warning' ? 5000 : 4000;
+      enqueueUpdateMessage(node.querySelector('strong')?.textContent, level, duration);
+      event.detail.target.replaceChildren();
     }
   });
 })();

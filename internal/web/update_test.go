@@ -47,6 +47,39 @@ func TestNextAutomaticUpdateCheckUsesLocalFourAM(t *testing.T) {
 	}
 }
 
+func TestUpdateMessagesRenderInOrderAndUseFiniteDurations(t *testing.T) {
+	markup := renderUpdateMessageQueue([]updateCardMessage{
+		{Level: "error", Text: "第一条错误"},
+		{Level: "success", Text: "第二条消息"},
+	})
+	first := strings.Index(markup, "第一条错误")
+	second := strings.Index(markup, "第二条消息")
+	if first < 0 || second <= first {
+		t.Fatalf("update messages were not rendered in order: %s", markup)
+	}
+	for _, want := range []string{"data-update-message", "data-duration=6000", "data-duration=4000", "role=alert"} {
+		if !strings.Contains(markup, want) {
+			t.Fatalf("update queue does not contain %q: %s", want, markup)
+		}
+	}
+}
+
+func TestRedirectUpdateTargetsDeploymentCard(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/settings/update/check", nil)
+	redirectUpdate(w, r, "更新服务未初始化", true)
+	location, err := url.Parse(w.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w.Code != http.StatusSeeOther || location.Path != "/settings" || location.Query().Get("update_message") != "更新服务未初始化" || location.Query().Get("update_level") != "error" {
+		t.Fatalf("unexpected update redirect: status=%d location=%q", w.Code, location.String())
+	}
+	if location.Query().Get("notice") != "" || location.Query().Get("error") != "" {
+		t.Fatalf("update redirect still targets the page-level flash: %s", location.String())
+	}
+}
+
 func TestUpdateAvailableBadgeOnlyShowsInstallableUpdate(t *testing.T) {
 	store, err := storage.Open(filepath.Join(t.TempDir(), "db"))
 	if err != nil {
@@ -97,7 +130,7 @@ func TestAuthenticatedPageRendersBothUpdateBadges(t *testing.T) {
 	if got := strings.Count(body, `/static/update-available.svg`); got != 2 {
 		t.Fatalf("rendered %d update icons, want 2", got)
 	}
-	for _, want := range []string{"update-available-dashboard", "update-available-sidebar", "ui17"} {
+	for _, want := range []string{"update-available-dashboard", "update-available-sidebar", "ui18"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("page does not contain %q", want)
 		}
@@ -263,8 +296,11 @@ func TestInstallRequiresCSRFEvenWithoutLogin(t *testing.T) {
 		}
 		w := httptest.NewRecorder()
 		s.installUpdate(w, r)
-		if !csrf && w.Code != http.StatusForbidden {
-			t.Fatalf("missing CSRF accepted: %d", w.Code)
+		if !csrf {
+			location, _ := url.Parse(w.Header().Get("Location"))
+			if w.Code != http.StatusSeeOther || !strings.Contains(location.Query().Get("update_message"), "请求验证失败") || location.Query().Get("update_level") != "error" {
+				t.Fatalf("missing CSRF was not rejected in the update card: status=%d location=%q", w.Code, location.String())
+			}
 		}
 		if csrf {
 			location, _ := url.QueryUnescape(w.Header().Get("Location"))

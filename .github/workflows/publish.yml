@@ -309,3 +309,35 @@ jobs:
             --tag "${IMAGE}:v${VERSION}" \
             --tag "${IMAGE}:latest" \
             "${IMAGE}:candidate-${GITHUB_SHA}"
+      - name: Delete the promoted candidate tag
+        shell: bash
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          IMAGE: ${{ needs.prepare.outputs.image }}
+        run: |
+          set -euo pipefail
+
+          namespace="${IMAGE%%/*}"
+          repository="${IMAGE#*/}"
+          candidate_tag="candidate-${GITHUB_SHA}"
+          if [[ -z "$namespace" || -z "$repository" || "$repository" == "$IMAGE" ]]; then
+            echo "Invalid Docker Hub image name: $IMAGE" >&2
+            exit 1
+          fi
+
+          auth_payload="$(jq -nc \
+            --arg identifier "$DOCKERHUB_USERNAME" \
+            --arg secret "$DOCKERHUB_TOKEN" \
+            '{identifier: $identifier, secret: $secret}')"
+          access_token="$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "$auth_payload" \
+            'https://hub.docker.com/v2/auth/token' | jq -er '.access_token')"
+
+          curl --fail-with-body --silent --show-error \
+            --request DELETE \
+            --header "Authorization: Bearer ${access_token}" \
+            "https://hub.docker.com/v2/namespaces/${namespace}/repositories/${repository}/tags/${candidate_tag}"
+          echo "Deleted Docker Hub tag ${IMAGE}:${candidate_tag}"

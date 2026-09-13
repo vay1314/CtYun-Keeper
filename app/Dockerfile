@@ -35,8 +35,7 @@ RUN printf '{"version":"%s","minimumLauncherVersion":"%s"}\n' "$APP_VERSION" "$L
     && chmod 0755 /app/launcher /app/builtin/ctyun-keeper
 COPY app/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh
-ENV TZ=Asia/Shanghai CTYUN_CONTAINER=true CTYUN_DATA_DIR=/app/data BUILTIN_DIR=/app/builtin APP_PORT=9845 \
-    CTYUN_IMAGE_VERSION=${APP_VERSION} CTYUN_BUILTIN_VERSION=${APP_VERSION} CTYUN_LAUNCHER_VERSION=${LAUNCHER_VERSION}
+ENV TZ=Asia/Shanghai CTYUN_CONTAINER=true CTYUN_DATA_DIR=/app/data BUILTIN_DIR=/app/builtin APP_PORT=9845
 USER root
 VOLUME ["/app/data"]
 EXPOSE 9845
