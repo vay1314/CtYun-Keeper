@@ -117,6 +117,44 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 (() => {
+  const storageKey = "ctyun-log-sources-scroll";
+  let position = { top: 0, left: 0 };
+
+  const readPosition = (sources) => ({ top: sources.scrollTop, left: sources.scrollLeft });
+  const restorePosition = (sources) => {
+    if (!sources) return;
+    sources.scrollTop = position.top;
+    sources.scrollLeft = position.left;
+  };
+
+  const sources = document.getElementById("log-sources");
+  if (!sources) return;
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+    if (Number.isFinite(saved?.top) && Number.isFinite(saved?.left)) position = saved;
+    sessionStorage.removeItem(storageKey);
+  } catch (_) {}
+  restorePosition(sources);
+
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const link = event.target.closest("#log-sources a");
+    if (!link) return;
+    position = readPosition(link.closest("#log-sources"));
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify(position));
+    } catch (_) {}
+  });
+
+  document.addEventListener("htmx:beforeSwap", (event) => {
+    if (event.detail.target?.id === "log-sources") position = readPosition(event.detail.target);
+  });
+  document.addEventListener("htmx:afterSwap", (event) => {
+    if (event.detail.target?.id === "log-sources") restorePosition(document.getElementById("log-sources"));
+  });
+})();
+
+(() => {
   if (document.body.dataset.authenticated !== "true") return;
   const context = document.modelContext;
   if (!context?.registerTool) return;

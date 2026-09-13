@@ -130,7 +130,7 @@ func TestAuthenticatedPageRendersBothUpdateBadges(t *testing.T) {
 	if got := strings.Count(body, `/static/update-available.svg`); got != 2 {
 		t.Fatalf("rendered %d update icons, want 2", got)
 	}
-	for _, want := range []string{"update-available-dashboard", "update-available-sidebar", "ui20"} {
+	for _, want := range []string{"update-available-dashboard", "update-available-sidebar", "ui21"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("page does not contain %q", want)
 		}
