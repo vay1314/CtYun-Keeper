@@ -1377,6 +1377,35 @@ func (m *Manager) RedeemCatalog(ctx context.Context, id int64) ([]ctyun.Reward, 
 	return available, d, nil
 }
 
+// AccountPoints reads the account's current marketplace points. The native
+// login profile is shared with the other account requests, so opening the
+// redeem page does not require a second platform login.
+func (m *Manager) AccountPoints(ctx context.Context, id int64) (int, error) {
+	a, err := m.store.Account(id)
+	if err != nil {
+		return 0, err
+	}
+	c, err := m.nativeClient(ctx, a)
+	if err != nil {
+		return 0, err
+	}
+	points, err := c.Points(ctx)
+	if err == nil || !ctyun.IsLoginExpired(err) {
+		return points, err
+	}
+
+	// A saved native profile can expire independently of the local session.
+	// Clear it once and retry so the redeem page can refresh without requiring
+	// the user to run another task first.
+	c.ClearProfile()
+	m.store.ClearNativeAuthCache(id)
+	c, err = m.nativeClient(ctx, a)
+	if err != nil {
+		return 0, err
+	}
+	return c.Points(ctx)
+}
+
 func (m *Manager) ValidateRedeemConfig(ctx context.Context, id int64, cfg storage.RedeemConfig) (storage.RedeemConfig, error) {
 	cfg.AccountID = id
 	if !cfg.Enabled {

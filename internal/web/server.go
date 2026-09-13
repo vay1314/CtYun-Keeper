@@ -334,7 +334,7 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request, title, content str
 		}
 		nav = `<aside class="sidebar" id="sidebar"><a class="brand" href="/"><span class="brand-mark material-symbols-rounded">cloud_sync</span><span><strong>CtYunKeeper</strong><small>云电脑管理台</small></span></a><nav><span class="nav-section">管理</span><a class="` + navActive(r.URL.Path, "/") + `" href="/"><span class="material-symbols-rounded">dashboard</span><span>仪表盘</span></a><a class="` + navActive(r.URL.Path, "/accounts") + `" href="/accounts"><span class="material-symbols-rounded">manage_accounts</span><span>账号管理</span></a><a class="` + navActive(r.URL.Path, "/tasks") + `" href="/tasks"><span class="material-symbols-rounded">schedule</span><span>任务中心</span></a><span class="nav-section">系统</span><a class="` + navActive(r.URL.Path, "/logs") + `" href="/logs"><span class="material-symbols-rounded">terminal</span><span>日志中心</span></a><a class="` + navActive(r.URL.Path, "/settings") + `" href="/settings"><span class="material-symbols-rounded">settings</span><span>系统设置</span></a></nav><div class="sidebar-foot"><span class="material-symbols-rounded">deployed_code</span><span><span class="sidebar-product-title"><strong>CtYunKeeper</strong>` + s.updateAvailableBadgeSlot("sidebar") + `</span><small>版本 v` + esc(s.version) + `</small></span></div></aside><header class="topbar"><button class="icon-button sidebar-toggle" type="button"><span class="material-symbols-rounded">menu</span></button><strong>天翼云电脑自动化管理</strong><div class="topbar-actions"><button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="切换网页主题"><span class="local-icon theme-icon-moon" aria-hidden="true"></span><span class="local-icon theme-icon-sun" aria-hidden="true"></span></button><a class="icon-button" href="/logs" aria-label="查看日志"><span class="material-symbols-rounded">notifications</span></a><form method="post" action="/ctyun/restart"><input type="hidden" name="csrf_token" value="` + esc(token) + `"><button class="icon-button" aria-label="重新加载保活"><span class="material-symbols-rounded">refresh</span></button></form>` + logoutAction + `</div></header><button class="sidebar-backdrop" type="button"></button>`
 	}
-	fmt.Fprintf(w, "<!doctype html><html lang=zh-CN><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=color-scheme content='light dark'><meta name=csrf-token content='%s'><title>%s · CtYunKeeper</title><script src='/static/theme.js?v=%s-ui18'></script><link rel=stylesheet href='/static/app.css?v=%s-ui18'><script src='/static/htmx.min.js' defer></script><script src='/static/app.js?v=%s-ui18' defer></script></head><body data-authenticated='%t' data-app-version='%s'>%s<main class='%s'>%s%s</main></body></html>", esc(token), esc(title), esc(s.version), esc(s.version), esc(s.version), auth, esc(s.version), nav, mainClass, flash, content)
+	fmt.Fprintf(w, "<!doctype html><html lang=zh-CN><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=color-scheme content='light dark'><meta name=csrf-token content='%s'><title>%s · CtYunKeeper</title><script src='/static/theme.js?v=%s-ui19'></script><link rel=stylesheet href='/static/app.css?v=%s-ui19'><script src='/static/htmx.min.js' defer></script><script src='/static/app.js?v=%s-ui19' defer></script></head><body data-authenticated='%t' data-app-version='%s'>%s<main class='%s'>%s%s</main></body></html>", esc(token), esc(title), esc(s.version), esc(s.version), esc(s.version), auth, esc(s.version), nav, mainClass, flash, content)
 }
 func redirect(w http.ResponseWriter, r *http.Request, path, msg string, isErr bool) {
 	key := "notice"
@@ -934,7 +934,11 @@ func (s *Server) redeem(w http.ResponseWriter, r *http.Request, id int64, parts 
 		redirect(w, r, r.URL.Path, "自动兑换配置已保存", false)
 		return
 	}
-	a, _ := s.store.Account(id)
+	a, e := s.store.Account(id)
+	if e != nil {
+		http.NotFound(w, r)
+		return
+	}
 	cfg, _ := s.store.Redeem(id)
 	var pending string
 	_ = s.store.DB.QueryRow("SELECT last_attempt_status FROM redeem_states WHERE account_id=?", id).Scan(&pending)
@@ -942,6 +946,13 @@ func (s *Server) redeem(w http.ResponseWriter, r *http.Request, id int64, parts 
 	warning := ""
 	if e != nil {
 		warning = `<div class="form-error">无法读取实时目录：` + esc(e.Error()) + `</div>`
+	}
+	points, pointsErr := s.manager.AccountPoints(r.Context(), id)
+	pointsSummary := fmt.Sprintf(`<div class="points-summary redeem-points"><small>当前积分</small><strong>%d</strong></div>`, points)
+	pointsWarning := ""
+	if pointsErr != nil {
+		pointsSummary = `<div class="points-summary redeem-points unavailable"><small>当前积分</small><strong>查询失败</strong></div>`
+		pointsWarning = `<div class="form-error">无法读取当前积分：` + esc(pointsErr.Error()) + `</div>`
 	}
 	var productOptions strings.Builder
 	for _, p := range rewards {
@@ -963,7 +974,7 @@ func (s *Server) redeem(w http.ResponseWriter, r *http.Request, id int64, parts 
 	if pending == "pending" {
 		pendingPanel = fmt.Sprintf(`<article class="panel form-panel"><h2>上一笔订单待确认</h2><p>为避免重复扣除积分，自动兑换已暂停。请在平台核对订单后选择结果。</p><div class=form-actions><form method=post action="/accounts/%d/redeem/resolve"><input type=hidden name=csrf_token value="{{CSRF}}"><input type=hidden name=succeeded value=1><button class=primary>确认已成功</button></form><form method=post action="/accounts/%d/redeem/resolve"><input type=hidden name=csrf_token value="{{CSRF}}"><input type=hidden name=succeeded value=0><button class=secondary>确认未成功</button></form></div></article>`, id, id)
 	}
-	content := fmt.Sprintf(`<header class=page-head><div><p class=eyebrow>积分奖励</p><h1>%s · 积分兑换</h1></div><div class=form-actions><a class="secondary button" href=/accounts>返回</a></div></header>%s%s<form class="panel form-panel" method=post><input type=hidden name=csrf_token value="{{CSRF}}"><label class=switch-row><input type=checkbox name=enabled%s><span>启用自动兑换（仅控制按计划自动执行）</span></label><div class=form-grid><label>奖励商品<select name=product_id required>%s</select></label><label>目标云电脑<select name=desktop_id>%s</select><small>数据盘和规格升配商品必须选择；普通权益由平台绑定当前账号。</small></label><label>单次最多兑换次数<input type=number name=max_times min=1 value="%d"></label><label>计划<select name=schedule_type><option value=daily%s>每天检查</option><option value=interval%s>按间隔天数</option><option value=monthly%s>指定每月日期</option></select></label><label>间隔天数<input type=number name=interval_days min=1 value="%d"></label><label>每月日期<input name=monthly_days value="%s" placeholder="1,15,28；-1 表示月末"></label></div><p class=muted>立即兑换不受自动兑换开关和计划日期限制。提交订单前会重新校验商品价格、状态、有效期、积分和云电脑归属；平台返回 code=0 即记为成功，积分和兑换统计仅用于辅助核对。网络中断等无法取得明确平台结果时才进入待人工确认；检测到风控后会自动关闭后续自动兑换。</p><div class=form-actions><button class=primary type=submit>保存配置</button><button class=secondary type=submit name=action value=redeem>立即兑换</button></div></form>`, esc(a.Name), warning, pendingPanel, checked(cfg.Enabled), productOptions.String(), desktopOptions.String(), cfg.MaxTimes, selected(cfg.ScheduleType == "daily"), selected(cfg.ScheduleType == "interval"), selected(cfg.ScheduleType == "monthly"), cfg.IntervalDays, esc(cfg.MonthlyDays))
+	content := fmt.Sprintf(`<header class=page-head><div><p class=eyebrow>积分奖励</p><h1>%s · 积分兑换</h1></div><div class=form-actions><a class="secondary button" href=/accounts>返回</a></div></header>%s%s<form class="panel form-panel" method=post><input type=hidden name=csrf_token value="{{CSRF}}"><div class="panel-head redeem-panel-head"><div><p class=eyebrow>兑换设置</p><h2>设置积分兑换</h2></div>%s</div>%s<label class=switch-row><input type=checkbox name=enabled%s><span>启用自动兑换（仅控制按计划自动执行）</span></label><div class=form-grid><label>奖励商品<select name=product_id required>%s</select></label><label>目标云电脑<select name=desktop_id>%s</select><small>数据盘和规格升配商品必须选择；普通权益由平台绑定当前账号。</small></label><label>单次最多兑换次数<input type=number name=max_times min=1 value="%d"></label><label>计划<select name=schedule_type><option value=daily%s>每天检查</option><option value=interval%s>按间隔天数</option><option value=monthly%s>指定每月日期</option></select></label><label>间隔天数<input type=number name=interval_days min=1 value="%d"></label><label>每月日期<input name=monthly_days value="%s" placeholder="1,15,28；-1 表示月末"></label></div><p class=muted>立即兑换不受自动兑换开关和计划日期限制。提交订单前会重新校验商品价格、状态、有效期、积分和云电脑归属；平台返回 code=0 即记为成功，积分和兑换统计仅用于辅助核对。网络中断等无法取得明确平台结果时才进入待人工确认；检测到风控后会自动关闭后续自动兑换。</p><div class=form-actions><button class=primary type=submit>保存配置</button><button class=secondary type=submit name=action value=redeem>立即兑换</button></div></form>`, esc(a.Name), warning, pendingPanel, pointsSummary, pointsWarning, checked(cfg.Enabled), productOptions.String(), desktopOptions.String(), cfg.MaxTimes, selected(cfg.ScheduleType == "daily"), selected(cfg.ScheduleType == "interval"), selected(cfg.ScheduleType == "monthly"), cfg.IntervalDays, esc(cfg.MonthlyDays))
 	s.page(w, r, "自动兑换", content, true)
 }
 

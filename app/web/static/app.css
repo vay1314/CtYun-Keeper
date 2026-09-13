@@ -296,6 +296,10 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgb
 .account-state-dot.stopped { background: var(--red); box-shadow: 0 0 0 3px rgba(220, 102, 93, .1); }
 .points-summary { min-width: 94px; padding: 8px 11px; text-align: right; border: 1px solid rgba(89, 168, 232, .14); border-radius: 10px; background: rgba(234, 245, 255, .58); }
 .points-summary strong { margin-top: 1px; color: var(--blue-strong); font-size: 1.55rem; line-height: 1.15; }
+.redeem-panel-head { align-items: flex-start; }
+.redeem-panel-head h2 { margin: 0; }
+.redeem-points { flex: 0 0 auto; min-width: 112px; }
+.redeem-points.unavailable strong { color: var(--muted); font-size: .9rem; line-height: 1.65; }
 .platform-task-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 20px 0 14px; }
 .platform-task { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: rgba(247, 250, 253, .78); }
 .platform-task.success { border-color: rgba(89, 173, 118, .17); background: rgba(233, 247, 238, .34); }
