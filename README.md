@@ -14,6 +14,10 @@
 
 ![账号管理](docs/screenshots/02-accounts.png)
 
+### 积分兑换
+
+![积分兑换](docs/screenshots/02-accounts-points redemption.png)
+
 ### 任务中心
 
 ![任务中心](docs/screenshots/03-tasks.png)
