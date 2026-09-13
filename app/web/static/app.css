@@ -229,11 +229,12 @@ h2 { margin-bottom: 0; font-size: 1.08rem; letter-spacing: -.02em; }
 .table-panel > .panel-head { padding: 22px 24px 0; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; min-width: 760px; }
-th, td { padding: 16px 20px; text-align: left; border-bottom: 1px solid var(--line); }
+th, td { padding: 16px 20px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line); }
 th { color: #748195; background: rgba(244, 247, 250, .78); font-size: .76rem; letter-spacing: .04em; text-transform: uppercase; }
 tbody tr:hover { background: rgba(236, 246, 253, .52); }
 .actions { display: flex; gap: 14px; align-items: center; }
 .actions form { margin: 0; }
+.action-cell { white-space: nowrap; }
 .schedule-state { color: #536174; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .83rem; }
 .empty { padding: 48px 24px; text-align: center; color: var(--muted); }
 .empty strong { color: var(--text); font-size: 1.1rem; }
@@ -494,8 +495,8 @@ html[data-theme="dark"] .update-progress-state { background: #172439; }
   table tr:last-child { border-bottom: 0; }
   table td { min-height: 39px; padding: 8px 4px; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: center; border: 0; }
   table td::before { content: attr(data-label); color: var(--muted); font-size: .76rem; font-weight: 700; }
-  table td.actions { display: grid; grid-template-columns: 96px auto 1fr; }
-  table td.actions > form { margin: 0; }
+  table td.action-cell { display: grid; grid-template-columns: 96px minmax(0, 1fr); }
+  table td.action-cell > .actions { min-width: 0; flex-wrap: wrap; }
   .log-sources { display: flex; max-height: none; overflow-x: auto; }
   .log-sources h2 { display: none; }
   .log-sources a { min-width: 150px; }
