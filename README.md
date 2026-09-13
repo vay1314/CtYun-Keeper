@@ -16,7 +16,7 @@
 
 ### 积分兑换
 
-![积分兑换](docs/screenshots/02-accounts-points redemption.png)
+![积分兑换](docs/screenshots/02-accounts-points_redemption.png)
 
 ### 任务中心
 
