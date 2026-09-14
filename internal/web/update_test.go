@@ -130,7 +130,7 @@ func TestAuthenticatedPageRendersBothUpdateBadges(t *testing.T) {
 	if got := strings.Count(body, `/static/update-available.svg`); got != 2 {
 		t.Fatalf("rendered %d update icons, want 2", got)
 	}
-	for _, want := range []string{"update-available-dashboard", "update-available-sidebar", "ui21"} {
+	for _, want := range []string{"update-available-dashboard", "update-available-sidebar", "ui24"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("page does not contain %q", want)
 		}
@@ -336,6 +336,19 @@ func TestProxyCanBeChangedWithoutPassword(t *testing.T) {
 	card := s.deploymentCard()
 	if !strings.Contains(card, "在线更新") {
 		t.Fatal("deployment card did not render the install action")
+	}
+	for _, want := range []string{"icon-github", "CtYun-Keeper", `href="https://github.com/vay1314/CtYun-Keeper"`} {
+		if !strings.Contains(card, want) {
+			t.Fatalf("deployment card does not contain project reference %q", want)
+		}
+	}
+	if strings.Count(card, `href="https://github.com/vay1314/CtYun-Keeper"`) != 2 ||
+		!strings.Contains(card, "class=deployment-project-icon") ||
+		!strings.Contains(card, "class=deployment-project-name") {
+		t.Fatal("deployment card does not render separate project icon and name links")
+	}
+	if strings.Contains(card, ">GitHub 项目<") || strings.Contains(card, ">https://github.com/vay1314/CtYun-Keeper<") {
+		t.Fatal("deployment card still renders the removed project label or address text")
 	}
 	for _, removed := range []string{"测试代理", "回滚上一版本", "/settings/update/proxy/test", "/settings/update/rollback", "admin_password", ">管理密码<"} {
 		if strings.Contains(card, removed) {

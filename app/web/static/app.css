@@ -127,6 +127,7 @@ nav a.active .material-symbols-rounded { color: var(--blue); }
 .theme-icon-sun { --icon-url: url("/static/sun.svg"); display: none; }
 .icon-lock { --icon-url: url("/static/lock.svg"); }
 .icon-lock-open { --icon-url: url("/static/lock-open.svg"); }
+.icon-github { --icon-url: url("/static/github.svg"); }
 .settings-card-head .local-icon { width: 25px; height: 25px; }
 html[data-theme="dark"] .theme-icon-moon { display: none; }
 html[data-theme="dark"] .theme-icon-sun { display: inline-block; }
@@ -376,6 +377,11 @@ pre { height: 58vh; margin: 0; padding: 18px; overflow: auto; border: 1px solid 
 .settings-card-head .panel-icon.neutral { color: #58677a; background: #f1f3f6; }
 .settings-card-head h2 { margin: 0; font-size: 1.08rem; }
 .settings-card-head small { display: block; margin-top: 3px; color: var(--muted); font-size: .78rem; }
+.deployment-project { flex: 0 0 auto; min-height: 42px; margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
+.deployment-project-icon { width: 28px; height: 28px; display: inline-grid; place-items: center; color: var(--text); }
+.deployment-project .icon-github { width: 24px; height: 24px; }
+.deployment-project-name { color: var(--text); font-size: .86rem; font-weight: 750; white-space: nowrap; }
+.deployment-project-icon:hover, .deployment-project-name:hover { color: var(--blue-strong); }
 .settings-fields { display: grid; grid-template-columns: 1fr; gap: 16px; }
 .settings-fields label { font-size: .79rem; }
 .settings-hint { margin: 10px 0 16px; color: var(--muted); font-size: .76rem; }
@@ -511,6 +517,8 @@ html[data-theme="dark"] .update-progress-state { background: #172439; }
   .task-empty-card .button { grid-column: 1 / -1; }
   .settings-card { padding: 22px; }
   .settings-card-head { align-items: flex-start; }
+  .deployment-settings-head { flex-wrap: wrap; }
+  .deployment-project { flex: 1 1 220px; justify-content: flex-end; }
   .password-settings-head { flex-wrap: wrap; }
   .password-settings-head .settings-auth-toggle-form { flex-basis: 210px; width: 210px; margin: 4px 0 0 auto; }
   .page-head { align-items: flex-start; }
@@ -530,6 +538,7 @@ html[data-theme="dark"] .update-progress-state { background: #172439; }
   .retention-controls button { width: 100%; }
   .settings-card-footer { align-items: stretch; flex-direction: column; }
   .settings-card-footer button { width: 100%; }
+  .deployment-project { flex-basis: 100%; margin-left: 67px; justify-content: flex-start; }
   .platform-card .launch-actions { grid-template-columns: 1fr 1fr; }
   .auth-card { padding: 30px 24px; }
   .build-strip { gap: 18px; flex-direction: column; }
