@@ -213,6 +213,11 @@ h2 { margin-bottom: 0; font-size: 1.08rem; letter-spacing: -.02em; }
 .pill.running, .pill.queued { color: var(--blue-strong); background: var(--blue-soft); }
 .pill.failed, .pill.stopped, .pill.interrupted { color: var(--red); background: var(--red-soft); }
 .pill.warning { color: var(--amber); background: var(--amber-soft); }
+.account-name-row { display: flex; align-items: center; gap: 8px; }
+.account-name-row strong { min-width: 0; }
+.inline-toggle { display: inline-flex; margin: 0; }
+.toggle-pill { min-height: auto; border: 0; cursor: pointer; transition: filter .15s ease, transform .15s ease; }
+.toggle-pill:hover { filter: brightness(.94); transform: translateY(-1px); }
 
 .primary, .secondary { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 16px; border-radius: 9px; font-weight: 700; }
 .primary { border: 1px solid var(--primary-fill); background: var(--primary-fill); color: var(--on-primary); box-shadow: 0 7px 16px rgba(50, 143, 213, .17); }

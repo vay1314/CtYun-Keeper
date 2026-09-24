@@ -140,6 +140,78 @@ func TestStartTaskRejectsReservedTaskKey(t *testing.T) {
 	}
 }
 
+func TestStartTaskRejectsDisabledAccount(t *testing.T) {
+	dir := t.TempDir()
+	store, err := storage.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	accountID, err := store.SaveAccount(storage.Account{Name: "disabled", Username: "user", DeviceCode: "device"}, "password", nil, func(value string, _ []byte) (string, error) { return value, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := New(store, nil, dir, "")
+	defer manager.Close()
+	if _, err = manager.StartTask(accountID, "login", "manual"); err == nil || !strings.Contains(err.Error(), "停用") {
+		t.Fatalf("disabled account task start error = %v", err)
+	}
+}
+
+func TestScheduledTaskRejectsDisabledTask(t *testing.T) {
+	dir := t.TempDir()
+	store, err := storage.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	accountID, err := store.SaveAccount(storage.Account{Name: "enabled", Username: "user", DeviceCode: "device", Enabled: true}, "password", nil, func(value string, _ []byte) (string, error) { return value, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := New(store, nil, dir, "")
+	defer manager.Close()
+	if _, err = manager.StartTask(accountID, "chat", "schedule"); err == nil || !strings.Contains(err.Error(), "任务已停用") {
+		t.Fatalf("disabled scheduled task start error = %v", err)
+	}
+}
+
+func TestAutomationRandomDelayStaysWithinConfiguredRange(t *testing.T) {
+	account := storage.Account{LoginDelayMinutes: 3, PCDelayMinutes: 7, ChatDelayMinutes: 11}
+	if scheduledTaskDelay(account, "login") != 3 || scheduledTaskDelay(account, "pc") != 7 || scheduledTaskDelay(account, "chat") != 11 {
+		t.Fatal("task-specific random delays were not selected independently")
+	}
+	if got := automationRandomDelay(0); got != 0 {
+		t.Fatalf("disabled random delay = %s", got)
+	}
+	for range 100 {
+		got := automationRandomDelay(5)
+		if got < 0 || got > 5*time.Minute {
+			t.Fatalf("random delay outside configured range: %s", got)
+		}
+	}
+	if got := readableDelay(2*time.Minute + 7*time.Second); got != "2 分 7 秒" {
+		t.Fatalf("readable delay = %q", got)
+	}
+}
+
+func TestStopAccountTaskOnlyCancelsMatchingTask(t *testing.T) {
+	manager := &Manager{active: map[int64]running{}}
+	loginCtx, cancelLogin := context.WithCancel(context.Background())
+	chatCtx, cancelChat := context.WithCancel(context.Background())
+	defer cancelLogin()
+	defer cancelChat()
+	manager.active[1] = running{accountID: 9, typ: "9:login", cancel: cancelLogin}
+	manager.active[2] = running{accountID: 9, typ: "9:chat", cancel: cancelChat}
+	manager.StopAccountTask(9, "login")
+	if !errors.Is(loginCtx.Err(), context.Canceled) {
+		t.Fatal("matching account task was not cancelled")
+	}
+	if chatCtx.Err() != nil {
+		t.Fatal("unrelated account task was cancelled")
+	}
+}
+
 func TestScheduledKeepaliveWaitsForUsageTaskBeforeStopping(t *testing.T) {
 	dir := t.TempDir()
 	store, err := storage.Open(filepath.Join(dir, "test.db"))

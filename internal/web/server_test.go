@@ -64,6 +64,19 @@ func TestValidateKeepaliveSettings(t *testing.T) {
 	}
 }
 
+func TestInlineAccountAndTaskToggles(t *testing.T) {
+	account := accountToggle(storage.Account{ID: 7, Enabled: true})
+	if !strings.Contains(account, `/accounts/7/enabled`) || !strings.Contains(account, `value=0`) || !strings.Contains(account, `已启用`) {
+		t.Fatalf("enabled account toggle = %q", account)
+	}
+	task := scheduleSummary(7, "chat", false, "10 3 * * *")
+	for _, want := range []string{`/accounts/7/tasks/chat/enabled`, `value=1`, `关闭`, `10 3 * * *`} {
+		if !strings.Contains(task, want) {
+			t.Fatalf("disabled task toggle does not contain %q: %s", want, task)
+		}
+	}
+}
+
 func TestPasswordAuthenticationCanBeDisabled(t *testing.T) {
 	store, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {

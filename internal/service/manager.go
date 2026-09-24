@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -890,6 +891,22 @@ func (m *Manager) StartTask(id int64, typ, trigger string) (int64, error) {
 	}
 	m.starting[key] = struct{}{}
 	m.mu.Unlock()
+	a, accountErr := m.store.Account(id)
+	if accountErr != nil || !a.Enabled {
+		m.mu.Lock()
+		delete(m.starting, key)
+		m.mu.Unlock()
+		if accountErr != nil {
+			return 0, accountErr
+		}
+		return 0, errors.New("账号已停用")
+	}
+	if trigger == "schedule" && typ != "redeem" && !scheduledTaskEnabled(a, typ) {
+		m.mu.Lock()
+		delete(m.starting, key)
+		m.mu.Unlock()
+		return 0, errors.New("任务已停用")
+	}
 	dir := filepath.Join(m.dataDir, "logs", "tasks")
 	_ = os.MkdirAll(dir, 0750)
 	path := filepath.Join(dir, fmt.Sprintf("%s-%d-%d.log", typ, id, time.Now().Unix()))
@@ -927,6 +944,33 @@ func (m *Manager) run(ctx context.Context, cancel context.CancelFunc, runID, acc
 	}
 	logger.Printf("开始%s任务", taskName)
 	a, e := m.store.Account(accountID)
+	if e == nil && !a.Enabled {
+		e = errors.New("账号已停用")
+	}
+	if e == nil && trigger == "schedule" && typ != "redeem" && !scheduledTaskEnabled(a, typ) {
+		e = errors.New("任务已停用")
+	}
+	if e == nil {
+		maxDelay := 0
+		if trigger == "schedule" && typ != "redeem" {
+			maxDelay = scheduledTaskDelay(a, typ)
+		}
+		if typ == "redeem" && (trigger == "schedule" || trigger == "after_pc") {
+			if cfg, cfgErr := m.store.Redeem(accountID); cfgErr == nil {
+				maxDelay = cfg.RandomDelayMinutes
+			}
+		}
+		if delay := automationRandomDelay(maxDelay); delay > 0 {
+			logger.Printf("已启用随机延迟，将在 %s 后执行", readableDelay(delay))
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				e = ctx.Err()
+			case <-timer.C:
+			}
+		}
+	}
 	execute := func() error {
 		if typ == "chat" {
 			return m.runChat(ctx, a, logger)
@@ -1002,6 +1046,55 @@ func (m *Manager) run(ctx context.Context, cancel context.CancelFunc, runID, acc
 	m.mu.Lock()
 	delete(m.active, runID)
 	m.mu.Unlock()
+}
+
+func scheduledTaskEnabled(account storage.Account, taskType string) bool {
+	switch taskType {
+	case "login":
+		return account.LoginEnabled
+	case "pc":
+		return account.PCEnabled
+	case "chat":
+		return account.ChatEnabled
+	default:
+		return false
+	}
+}
+
+func scheduledTaskDelay(account storage.Account, taskType string) int {
+	switch taskType {
+	case "login":
+		return account.LoginDelayMinutes
+	case "pc":
+		return account.PCDelayMinutes
+	case "chat":
+		return account.ChatDelayMinutes
+	default:
+		return 0
+	}
+}
+
+func automationRandomDelay(maxMinutes int) time.Duration {
+	if maxMinutes <= 0 {
+		return 0
+	}
+	if maxMinutes > 120 {
+		maxMinutes = 120
+	}
+	return time.Duration(rand.IntN(maxMinutes*60+1)) * time.Second
+}
+
+func readableDelay(delay time.Duration) string {
+	delay = delay.Round(time.Second)
+	minutes := int(delay / time.Minute)
+	seconds := int(delay/time.Second) % 60
+	if minutes == 0 {
+		return fmt.Sprintf("%d 秒", seconds)
+	}
+	if seconds == 0 {
+		return fmt.Sprintf("%d 分钟", minutes)
+	}
+	return fmt.Sprintf("%d 分 %d 秒", minutes, seconds)
 }
 
 func (m *Manager) activateDesktopLogin(ctx context.Context, a storage.Account, c *ctyun.Client, l *log.Logger) error {
@@ -1208,6 +1301,28 @@ func (m *Manager) StopTask(id int64) bool {
 	}
 	return ok
 }
+
+func (m *Manager) StopAccountTasks(accountID int64) {
+	m.stopAccountTaskType(accountID, "")
+}
+
+func (m *Manager) StopAccountTask(accountID int64, taskType string) {
+	m.stopAccountTaskType(accountID, taskType)
+}
+
+func (m *Manager) stopAccountTaskType(accountID int64, taskType string) {
+	m.mu.RLock()
+	var cancels []context.CancelFunc
+	for _, task := range m.active {
+		if task.accountID == accountID && (taskType == "" || task.typ == fmt.Sprintf("%d:%s", accountID, taskType)) {
+			cancels = append(cancels, task.cancel)
+		}
+	}
+	m.mu.RUnlock()
+	for _, cancel := range cancels {
+		cancel()
+	}
+}
 func (m *Manager) ActiveCount() int { m.mu.RLock(); defer m.mu.RUnlock(); return len(m.active) }
 
 func (m *Manager) RunningAccountCount() int {
@@ -1408,6 +1523,9 @@ func (m *Manager) AccountPoints(ctx context.Context, id int64) (int, error) {
 
 func (m *Manager) ValidateRedeemConfig(ctx context.Context, id int64, cfg storage.RedeemConfig) (storage.RedeemConfig, error) {
 	cfg.AccountID = id
+	if cfg.RandomDelayMinutes < 0 || cfg.RandomDelayMinutes > 120 {
+		return cfg, errors.New("兑换随机延迟必须在 0 到 120 分钟之间")
+	}
 	if !cfg.Enabled {
 		if cfg.MaxTimes < 1 {
 			cfg.MaxTimes = 1
@@ -1444,6 +1562,9 @@ func (m *Manager) ValidateRedeemConfig(ctx context.Context, id int64, cfg storag
 
 func (m *Manager) ValidateImmediateRedeem(ctx context.Context, id int64, cfg storage.RedeemConfig) (storage.RedeemConfig, error) {
 	cfg.AccountID = id
+	if cfg.RandomDelayMinutes < 0 || cfg.RandomDelayMinutes > 120 {
+		return cfg, errors.New("兑换随机延迟必须在 0 到 120 分钟之间")
+	}
 	if cfg.MaxTimes < 1 {
 		return cfg, errors.New("单次最多兑换次数必须大于 0")
 	}

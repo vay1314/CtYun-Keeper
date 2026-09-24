@@ -336,7 +336,7 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request, title, content str
 		}
 		nav = `<aside class="sidebar" id="sidebar"><a class="brand" href="/"><span class="brand-mark material-symbols-rounded">cloud_sync</span><span><strong>CtYunKeeper</strong><small>云电脑管理台</small></span></a><nav><span class="nav-section">管理</span><a class="` + navActive(r.URL.Path, "/") + `" href="/"><span class="material-symbols-rounded">dashboard</span><span>仪表盘</span></a><a class="` + navActive(r.URL.Path, "/accounts") + `" href="/accounts"><span class="material-symbols-rounded">manage_accounts</span><span>账号管理</span></a><a class="` + navActive(r.URL.Path, "/tasks") + `" href="/tasks"><span class="material-symbols-rounded">schedule</span><span>任务中心</span></a><span class="nav-section">系统</span><a class="` + navActive(r.URL.Path, "/logs") + `" href="/logs"><span class="material-symbols-rounded">terminal</span><span>日志中心</span></a><a class="` + navActive(r.URL.Path, "/settings") + `" href="/settings"><span class="material-symbols-rounded">settings</span><span>系统设置</span></a></nav><div class="sidebar-foot"><span class="material-symbols-rounded">deployed_code</span><span><span class="sidebar-product-title"><strong>CtYunKeeper</strong>` + s.updateAvailableBadgeSlot("sidebar") + `</span><small>版本 v` + esc(s.version) + `</small></span></div></aside><header class="topbar"><button class="icon-button sidebar-toggle" type="button"><span class="material-symbols-rounded">menu</span></button><strong>天翼云电脑自动化管理</strong><div class="topbar-actions"><button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="切换网页主题"><span class="local-icon theme-icon-moon" aria-hidden="true"></span><span class="local-icon theme-icon-sun" aria-hidden="true"></span></button><a class="icon-button" href="/logs" aria-label="查看日志"><span class="material-symbols-rounded">notifications</span></a><form method="post" action="/ctyun/restart"><input type="hidden" name="csrf_token" value="` + esc(token) + `"><button class="icon-button" aria-label="重新加载保活"><span class="material-symbols-rounded">refresh</span></button></form>` + logoutAction + `</div></header><button class="sidebar-backdrop" type="button"></button>`
 	}
-	fmt.Fprintf(w, "<!doctype html><html lang=zh-CN><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=color-scheme content='light dark'><meta name=csrf-token content='%s'><title>%s · CtYunKeeper</title><script src='/static/theme.js?v=%s-ui24'></script><link rel=stylesheet href='/static/app.css?v=%s-ui24'><script src='/static/htmx.min.js' defer></script><script src='/static/app.js?v=%s-ui24' defer></script></head><body data-authenticated='%t' data-app-version='%s'>%s<main class='%s'>%s%s</main></body></html>", esc(token), esc(title), esc(s.version), esc(s.version), esc(s.version), auth, esc(s.version), nav, mainClass, flash, content)
+	fmt.Fprintf(w, "<!doctype html><html lang=zh-CN><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=color-scheme content='light dark'><meta name=csrf-token content='%s'><title>%s · CtYunKeeper</title><script src='/static/theme.js?v=%s-ui25'></script><link rel=stylesheet href='/static/app.css?v=%s-ui25'><script src='/static/htmx.min.js' defer></script><script src='/static/app.js?v=%s-ui25' defer></script></head><body data-authenticated='%t' data-app-version='%s'>%s<main class='%s'>%s%s</main></body></html>", esc(token), esc(title), esc(s.version), esc(s.version), esc(s.version), auth, esc(s.version), nav, mainClass, flash, content)
 }
 func redirect(w http.ResponseWriter, r *http.Request, path, msg string, isErr bool) {
 	key := "notice"
@@ -518,7 +518,7 @@ func (s *Server) accountTable() string {
 	for _, a := range values {
 		status := s.manager.AccountStatus(a.ID)
 		modeLabel, modeTone := keepaliveModeLabel(a)
-		fmt.Fprintf(&b, `<tr><td><strong>%s</strong><small>%s</small></td><td><span class="pill %s">%s</span><small>%s</small></td><td>%s</td><td>%s</td><td>%s</td><td class=action-cell data-label="操作"><div class=actions><a href="/accounts/%d/edit">编辑</a><a href="/accounts/%d/redeem">兑换</a><form method=post action="/accounts/%d/device-verification/start"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=link-button>设备验证</button></form><form method=post action="/accounts/%d/delete"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=danger-link>删除</button></form></div></td></tr>`, esc(a.Name), esc(mask(a.Username)), modeTone, modeLabel, esc(status), scheduleSummary(a.LoginEnabled, a.LoginCron), scheduleSummary(a.ChatEnabled, a.ChatCron), scheduleSummary(a.PCEnabled, a.PCCron), a.ID, a.ID, a.ID, a.ID)
+		fmt.Fprintf(&b, `<tr><td><div class=account-name-row><strong>%s</strong>%s</div><small>%s</small></td><td><span class="pill %s">%s</span><small>%s</small></td><td>%s</td><td>%s</td><td>%s</td><td class=action-cell data-label="操作"><div class=actions><a href="/accounts/%d/edit">编辑</a><a href="/accounts/%d/redeem">兑换</a><form method=post action="/accounts/%d/device-verification/start"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=link-button>设备验证</button></form><form method=post action="/accounts/%d/delete"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=danger-link>删除</button></form></div></td></tr>`, esc(a.Name), accountToggle(a), esc(mask(a.Username)), modeTone, modeLabel, esc(status), scheduleSummary(a.ID, "login", a.LoginEnabled, a.LoginCron), scheduleSummary(a.ID, "chat", a.ChatEnabled, a.ChatCron), scheduleSummary(a.ID, "pc", a.PCEnabled, a.PCCron), a.ID, a.ID, a.ID, a.ID)
 	}
 	b.WriteString(`</tbody></table></div></article>`)
 	return b.String()
@@ -544,11 +544,20 @@ func (s *Server) accountNew(w http.ResponseWriter, r *http.Request) {
 	s.accountForm(w, r, storage.Account{Enabled: true, KeepaliveEnabled: true, KeepaliveMode: storage.KeepaliveAlways, KeepaliveStart: "08:00", KeepaliveEnd: "23:00", KeepaliveWeekdays: "1,2,3,4,5,6,7", LoginEnabled: true, LoginCron: "0 3 * * *", PCEnabled: true, PCCron: "5 3 * * *", ChatEnabled: true, ChatCron: "10 3 * * *", DeviceCode: security.RandomToken(24)})
 }
 
-func scheduleSummary(enabled bool, expression string) string {
-	if !enabled {
-		return `<span class="pill warning">关闭</span>`
+func accountToggle(a storage.Account) string {
+	next, label, tone, title := "1", "已停用", "warning", "启用账号"
+	if a.Enabled {
+		next, label, tone, title = "0", "已启用", "success", "停用账号"
 	}
-	return `<span class="pill success">启用</span><small>` + esc(expression) + `</small>`
+	return fmt.Sprintf(`<form class=inline-toggle method=post action="/accounts/%d/enabled"><input type=hidden name=csrf_token value="{{CSRF}}"><input type=hidden name=enabled value=%s><button class="pill toggle-pill %s" title="%s" aria-label="%s">%s</button></form>`, a.ID, next, tone, title, title, label)
+}
+
+func scheduleSummary(accountID int64, taskType string, enabled bool, expression string) string {
+	next, label, tone, title := "1", "关闭", "warning", "启用此任务"
+	if enabled {
+		next, label, tone, title = "0", "启用", "success", "停用此任务"
+	}
+	return fmt.Sprintf(`<form class=inline-toggle method=post action="/accounts/%d/tasks/%s/enabled"><input type=hidden name=csrf_token value="{{CSRF}}"><input type=hidden name=enabled value=%s><button class="pill toggle-pill %s" title="%s" aria-label="%s">%s</button></form><small>%s</small>`, accountID, taskType, next, tone, title, title, label, esc(expression))
 }
 
 func keepaliveModeLabel(a storage.Account) (string, string) {
@@ -627,7 +636,7 @@ func (s *Server) accountForm(w http.ResponseWriter, r *http.Request, a storage.A
 		title = "编辑账号"
 		required = ""
 	}
-	content := fmt.Sprintf(`<header class=page-head><div><p class=eyebrow>账号配置</p><h1>%s</h1></div><a class="secondary button" href=/accounts>返回</a></header><form method=post action=/accounts/save class="panel form-panel"><input type=hidden name=csrf_token value="{{CSRF}}"><input type=hidden name=account_id value="%d"><fieldset><legend>登录信息</legend><div class=form-grid><label>显示名称<input name=name value="%s" required></label><label>天翼云账号<input name=username value="%s" required></label><label>密码<div class=password-field><input name=password type=password%s placeholder="%s">%s</div></label><label>设备码<input name=device_code value="%s" required></label></div><label class=switch-row><input type=checkbox name=enabled%s><span>启用账号</span></label></fieldset><fieldset><legend>云电脑保活</legend>%s</fieldset><fieldset><legend>每日积分任务</legend><div class=schedule-box><label class=switch-row><input type=checkbox name=login_enabled%s><span>启用登录任务</span></label><label>Cron 计划<input name=login_cron value="%s" required></label></div><div class=schedule-box><label class=switch-row><input type=checkbox name=pc_enabled%s><span>启用时长任务</span></label><label>Cron 计划<input name=pc_cron value="%s" required></label></div><div class=schedule-box><label class=switch-row><input type=checkbox name=chat_enabled%s><span>启用 AI 对话任务</span></label><label>Cron 计划<input name=chat_cron value="%s" required></label></div></fieldset><div class=form-actions><a href=/accounts>取消</a><button class=primary>保存并检查设备</button></div></form>`, title, a.ID, esc(a.Name), esc(a.Username), required, map[bool]string{true: "留空表示不修改", false: "请输入密码"}[a.ID > 0], passwordToggle(), esc(a.DeviceCode), checked(a.Enabled), keepaliveForm(a), checked(a.LoginEnabled), esc(a.LoginCron), checked(a.PCEnabled), esc(a.PCCron), checked(a.ChatEnabled), esc(a.ChatCron))
+	content := fmt.Sprintf(`<header class=page-head><div><p class=eyebrow>账号配置</p><h1>%s</h1></div><a class="secondary button" href=/accounts>返回</a></header><form method=post action=/accounts/save class="panel form-panel"><input type=hidden name=csrf_token value="{{CSRF}}"><input type=hidden name=account_id value="%d"><fieldset><legend>登录信息</legend><div class=form-grid><label>显示名称<input name=name value="%s" required></label><label>天翼云账号<input name=username value="%s" required></label><label>密码<div class=password-field><input name=password type=password%s placeholder="%s">%s</div></label><label>设备码<input name=device_code value="%s" required></label></div><label class=switch-row><input type=checkbox name=enabled%s><span>启用账号</span></label></fieldset><fieldset><legend>云电脑保活</legend>%s</fieldset><fieldset><legend>每日积分任务</legend><div class=schedule-box><label class=switch-row><input type=checkbox name=login_enabled%s><span>启用登录任务</span></label><div class=form-grid><label>Cron 计划<input name=login_cron value="%s" required></label><label>随机延迟（分钟）<input type=number name=login_delay_minutes min=0 max=120 value="%d"></label></div></div><div class=schedule-box><label class=switch-row><input type=checkbox name=pc_enabled%s><span>启用时长任务</span></label><div class=form-grid><label>Cron 计划<input name=pc_cron value="%s" required></label><label>随机延迟（分钟）<input type=number name=pc_delay_minutes min=0 max=120 value="%d"></label></div></div><div class=schedule-box><label class=switch-row><input type=checkbox name=chat_enabled%s><span>启用 AI 对话任务</span></label><div class=form-grid><label>Cron 计划<input name=chat_cron value="%s" required></label><label>随机延迟（分钟）<input type=number name=chat_delay_minutes min=0 max=120 value="%d"></label></div></div><p class=muted>随机延迟仅作用于自动执行；每项任务会在 0 到设定分钟之间随机等待，0 表示关闭。</p></fieldset><div class=form-actions><a href=/accounts>取消</a><button class=primary>保存并检查设备</button></div></form>`, title, a.ID, esc(a.Name), esc(a.Username), required, map[bool]string{true: "留空表示不修改", false: "请输入密码"}[a.ID > 0], passwordToggle(), esc(a.DeviceCode), checked(a.Enabled), keepaliveForm(a), checked(a.LoginEnabled), esc(a.LoginCron), a.LoginDelayMinutes, checked(a.PCEnabled), esc(a.PCCron), a.PCDelayMinutes, checked(a.ChatEnabled), esc(a.ChatCron), a.ChatDelayMinutes)
 	s.page(w, r, title, content, true)
 }
 func (s *Server) saveAccount(w http.ResponseWriter, r *http.Request) {
@@ -641,7 +650,16 @@ func (s *Server) saveAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _ := strconv.ParseInt(r.FormValue("account_id"), 10, 64)
 	mode := strings.TrimSpace(r.FormValue("keepalive_mode"))
-	a := storage.Account{ID: id, Name: strings.TrimSpace(r.FormValue("name")), Username: strings.TrimSpace(r.FormValue("username")), DeviceCode: strings.TrimSpace(r.FormValue("device_code")), Enabled: r.Form.Has("enabled"), KeepaliveEnabled: mode != storage.KeepaliveOff, KeepaliveMode: mode, KeepaliveStart: strings.TrimSpace(r.FormValue("keepalive_start")), KeepaliveEnd: strings.TrimSpace(r.FormValue("keepalive_end")), KeepaliveWeekdays: strings.Join(r.Form["keepalive_weekdays"], ","), LoginEnabled: r.Form.Has("login_enabled"), LoginCron: strings.TrimSpace(r.FormValue("login_cron")), ChatEnabled: r.Form.Has("chat_enabled"), ChatCron: strings.TrimSpace(r.FormValue("chat_cron")), PCEnabled: r.Form.Has("pc_enabled"), PCCron: strings.TrimSpace(r.FormValue("pc_cron"))}
+	a := storage.Account{ID: id, Name: strings.TrimSpace(r.FormValue("name")), Username: strings.TrimSpace(r.FormValue("username")), DeviceCode: strings.TrimSpace(r.FormValue("device_code")), Enabled: r.Form.Has("enabled"), KeepaliveEnabled: mode != storage.KeepaliveOff, KeepaliveMode: mode, KeepaliveStart: strings.TrimSpace(r.FormValue("keepalive_start")), KeepaliveEnd: strings.TrimSpace(r.FormValue("keepalive_end")), KeepaliveWeekdays: strings.Join(r.Form["keepalive_weekdays"], ","), LoginEnabled: r.Form.Has("login_enabled"), LoginCron: strings.TrimSpace(r.FormValue("login_cron")), LoginDelayMinutes: security.Int(r.FormValue("login_delay_minutes")), ChatEnabled: r.Form.Has("chat_enabled"), ChatCron: strings.TrimSpace(r.FormValue("chat_cron")), ChatDelayMinutes: security.Int(r.FormValue("chat_delay_minutes")), PCEnabled: r.Form.Has("pc_enabled"), PCCron: strings.TrimSpace(r.FormValue("pc_cron")), PCDelayMinutes: security.Int(r.FormValue("pc_delay_minutes"))}
+	for _, delay := range []struct {
+		label string
+		value int
+	}{{"登录任务", a.LoginDelayMinutes}, {"时长任务", a.PCDelayMinutes}, {"AI 对话任务", a.ChatDelayMinutes}} {
+		if delay.value < 0 || delay.value > 120 {
+			redirect(w, r, "/accounts", delay.label+"随机延迟必须在 0 到 120 分钟之间", true)
+			return
+		}
+	}
 	if e := validateKeepaliveSettings(a); e != nil {
 		redirect(w, r, "/accounts", e.Error(), true)
 		return
@@ -698,6 +716,49 @@ func (s *Server) accountRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.accountForm(w, r, a)
+		return
+	}
+	if len(parts) == 3 && parts[2] == "enabled" && r.Method == "POST" {
+		if !s.checkCSRF(r) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		enabled := r.FormValue("enabled") == "1"
+		if e := s.store.SetAccountEnabled(id, enabled); e != nil {
+			redirect(w, r, "/accounts", "更新账号状态失败："+e.Error(), true)
+			return
+		}
+		if !enabled {
+			s.manager.StopAccountTasks(id)
+		}
+		s.manager.RestartKeepalive()
+		message := "账号已停用"
+		if enabled {
+			message = "账号已启用"
+		}
+		redirect(w, r, "/accounts", message, false)
+		return
+	}
+	if len(parts) == 5 && parts[2] == "tasks" && parts[4] == "enabled" && r.Method == "POST" {
+		if !s.checkCSRF(r) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		taskType := parts[3]
+		enabled := r.FormValue("enabled") == "1"
+		if e := s.store.SetTaskEnabled(id, taskType, enabled); e != nil {
+			redirect(w, r, "/accounts", "更新任务状态失败："+e.Error(), true)
+			return
+		}
+		if !enabled {
+			s.manager.StopAccountTask(id, taskType)
+		}
+		label := map[string]string{"login": "登录任务", "pc": "时长任务", "chat": "AI 对话任务"}[taskType]
+		state := "已停用"
+		if enabled {
+			state = "已启用"
+		}
+		redirect(w, r, "/accounts", label+state, false)
 		return
 	}
 	if len(parts) >= 3 && parts[2] == "delete" && r.Method == "POST" {
@@ -908,7 +969,7 @@ func (s *Server) redeem(w http.ResponseWriter, r *http.Request, id int64, parts 
 			redirect(w, r, fmt.Sprintf("/accounts/%d/redeem", id), "待确认订单状态已处理", false)
 			return
 		}
-		cfg := storage.RedeemConfig{AccountID: id, Enabled: r.Form.Has("enabled"), ProductID: r.FormValue("product_id"), DesktopID: r.FormValue("desktop_id"), MaxTimes: security.Int(r.FormValue("max_times")), ScheduleType: r.FormValue("schedule_type"), IntervalDays: security.Int(r.FormValue("interval_days")), MonthlyDays: r.FormValue("monthly_days")}
+		cfg := storage.RedeemConfig{AccountID: id, Enabled: r.Form.Has("enabled"), ProductID: r.FormValue("product_id"), DesktopID: r.FormValue("desktop_id"), MaxTimes: security.Int(r.FormValue("max_times")), ScheduleType: r.FormValue("schedule_type"), IntervalDays: security.Int(r.FormValue("interval_days")), RandomDelayMinutes: security.Int(r.FormValue("random_delay_minutes")), MonthlyDays: r.FormValue("monthly_days")}
 		immediate := r.FormValue("action") == "redeem"
 		var e error
 		if immediate {
@@ -976,7 +1037,7 @@ func (s *Server) redeem(w http.ResponseWriter, r *http.Request, id int64, parts 
 	if pending == "pending" {
 		pendingPanel = fmt.Sprintf(`<article class="panel form-panel"><h2>上一笔订单待确认</h2><p>为避免重复扣除积分，自动兑换已暂停。请在平台核对订单后选择结果。</p><div class=form-actions><form method=post action="/accounts/%d/redeem/resolve"><input type=hidden name=csrf_token value="{{CSRF}}"><input type=hidden name=succeeded value=1><button class=primary>确认已成功</button></form><form method=post action="/accounts/%d/redeem/resolve"><input type=hidden name=csrf_token value="{{CSRF}}"><input type=hidden name=succeeded value=0><button class=secondary>确认未成功</button></form></div></article>`, id, id)
 	}
-	content := fmt.Sprintf(`<header class=page-head><div><p class=eyebrow>积分奖励</p><h1>%s · 积分兑换</h1></div><div class=form-actions><a class="secondary button" href=/accounts>返回</a></div></header>%s%s<form class="panel form-panel" method=post><input type=hidden name=csrf_token value="{{CSRF}}"><div class="panel-head redeem-panel-head"><div><p class=eyebrow>兑换设置</p><h2>设置积分兑换</h2></div>%s</div>%s<label class=switch-row><input type=checkbox name=enabled%s><span>启用自动兑换（仅控制按计划自动执行）</span></label><div class=form-grid><label>奖励商品<select name=product_id required>%s</select></label><label>目标云电脑<select name=desktop_id>%s</select><small>数据盘和规格升配商品必须选择；普通权益由平台绑定当前账号。</small></label><label>单次最多兑换次数<input type=number name=max_times min=1 value="%d"></label><label>计划<select name=schedule_type><option value=daily%s>每天检查</option><option value=interval%s>按间隔天数</option><option value=monthly%s>指定每月日期</option></select></label><label>间隔天数<input type=number name=interval_days min=1 value="%d"></label><label>每月日期<input name=monthly_days value="%s" placeholder="1,15,28；-1 表示月末"></label></div><p class=muted>立即兑换不受自动兑换开关和计划日期限制。提交订单前会重新校验商品价格、状态、有效期、积分和云电脑归属；平台返回 code=0 即记为成功，积分和兑换统计仅用于辅助核对。网络中断等无法取得明确平台结果时才进入待人工确认；检测到风控后会自动关闭后续自动兑换。</p><div class=form-actions><button class=primary type=submit>保存配置</button><button class=secondary type=submit name=action value=redeem>立即兑换</button></div></form>`, esc(a.Name), warning, pendingPanel, pointsSummary, pointsWarning, checked(cfg.Enabled), productOptions.String(), desktopOptions.String(), cfg.MaxTimes, selected(cfg.ScheduleType == "daily"), selected(cfg.ScheduleType == "interval"), selected(cfg.ScheduleType == "monthly"), cfg.IntervalDays, esc(cfg.MonthlyDays))
+	content := fmt.Sprintf(`<header class=page-head><div><p class=eyebrow>积分奖励</p><h1>%s · 积分兑换</h1></div><div class=form-actions><a class="secondary button" href=/accounts>返回</a></div></header>%s%s<form class="panel form-panel" method=post><input type=hidden name=csrf_token value="{{CSRF}}"><div class="panel-head redeem-panel-head"><div><p class=eyebrow>兑换设置</p><h2>设置积分兑换</h2></div>%s</div>%s<label class=switch-row><input type=checkbox name=enabled%s><span>启用自动兑换（仅控制按计划自动执行）</span></label><div class=form-grid><label>奖励商品<select name=product_id required>%s</select></label><label>目标云电脑<select name=desktop_id>%s</select><small>数据盘和规格升配商品必须选择；普通权益由平台绑定当前账号。</small></label><label>单次最多兑换次数<input type=number name=max_times min=1 value="%d"></label><label>兑换最大随机延迟（分钟）<input type=number name=random_delay_minutes min=0 max=120 value="%d"><small>仅作用于自动兑换，0 表示关闭。</small></label><label>计划<select name=schedule_type><option value=daily%s>每天检查</option><option value=interval%s>按间隔天数</option><option value=monthly%s>指定每月日期</option></select></label><label>间隔天数<input type=number name=interval_days min=1 value="%d"></label><label>每月日期<input name=monthly_days value="%s" placeholder="1,15,28；-1 表示月末"></label></div><p class=muted>立即兑换不受自动兑换开关、计划日期和随机延迟限制。提交订单前会重新校验商品价格、状态、有效期、积分和云电脑归属；平台返回 code=0 即记为成功，积分和兑换统计仅用于辅助核对。网络中断等无法取得明确平台结果时才进入待人工确认；检测到风控后会自动关闭后续自动兑换。</p><div class=form-actions><button class=primary type=submit>保存配置</button><button class=secondary type=submit name=action value=redeem>立即兑换</button></div></form>`, esc(a.Name), warning, pendingPanel, pointsSummary, pointsWarning, checked(cfg.Enabled), productOptions.String(), desktopOptions.String(), cfg.MaxTimes, cfg.RandomDelayMinutes, selected(cfg.ScheduleType == "daily"), selected(cfg.ScheduleType == "interval"), selected(cfg.ScheduleType == "monthly"), cfg.IntervalDays, esc(cfg.MonthlyDays))
 	s.page(w, r, "自动兑换", content, true)
 }
 

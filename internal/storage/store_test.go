@@ -18,10 +18,12 @@ func TestLegacyAccountMigrationEnablesExistingKeepaliveAndLoginTask(t *testing.T
 		id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,username TEXT NOT NULL UNIQUE,
 		password_encrypted TEXT NOT NULL,device_code TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,
 		chat_enabled INTEGER NOT NULL DEFAULT 1,chat_cron TEXT NOT NULL DEFAULT '0 3,20 * * *',
-		pc_enabled INTEGER NOT NULL DEFAULT 1,pc_cron TEXT NOT NULL DEFAULT '0 4,6 * * *',
+		pc_enabled INTEGER NOT NULL DEFAULT 1,pc_cron TEXT NOT NULL DEFAULT '0 4,6 * * *',task_delay_minutes INTEGER NOT NULL DEFAULT 0,
 		device_status TEXT NOT NULL DEFAULT 'unknown',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
-		INSERT INTO accounts(name,username,password_encrypted,device_code,enabled,chat_enabled,chat_cron,pc_enabled,pc_cron,device_status,created_at,updated_at)
-		VALUES('legacy','user','password','device',1,1,'0 3,20 * * *',1,'0 4,6 * * *','verified','now','now');`)
+		INSERT INTO accounts(name,username,password_encrypted,device_code,enabled,chat_enabled,chat_cron,pc_enabled,pc_cron,task_delay_minutes,device_status,created_at,updated_at)
+		VALUES('legacy','user','password','device',1,1,'0 3,20 * * *',1,'0 4,6 * * *',23,'verified','now','now');
+		CREATE TABLE redeem_configs(account_id INTEGER PRIMARY KEY,enabled INTEGER NOT NULL DEFAULT 0,product_id TEXT NOT NULL DEFAULT '',product_name TEXT NOT NULL DEFAULT '',product_type TEXT NOT NULL DEFAULT '',desktop_id TEXT NOT NULL DEFAULT '',cost_points INTEGER NOT NULL DEFAULT 0,max_times INTEGER NOT NULL DEFAULT 1,schedule_type TEXT NOT NULL DEFAULT 'daily',interval_days INTEGER NOT NULL DEFAULT 1,monthly_days TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL);
+		INSERT INTO redeem_configs(account_id,updated_at) VALUES(1,'now');`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,8 +40,12 @@ func TestLegacyAccountMigrationEnablesExistingKeepaliveAndLoginTask(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !a.KeepaliveEnabled || a.KeepaliveMode != KeepaliveAlways || a.KeepaliveStart != "08:00" || a.KeepaliveEnd != "23:00" || a.KeepaliveWeekdays != "1,2,3,4,5,6,7" || !a.LoginEnabled || a.LoginCron != "0 3 * * *" {
+	if !a.KeepaliveEnabled || a.KeepaliveMode != KeepaliveAlways || a.KeepaliveStart != "08:00" || a.KeepaliveEnd != "23:00" || a.KeepaliveWeekdays != "1,2,3,4,5,6,7" || !a.LoginEnabled || a.LoginCron != "0 3 * * *" || a.LoginDelayMinutes != 23 || a.ChatDelayMinutes != 23 || a.PCDelayMinutes != 23 {
 		t.Fatalf("legacy defaults not migrated: %#v", a)
+	}
+	redeem, err := s.Redeem(1)
+	if err != nil || redeem.RandomDelayMinutes != 0 {
+		t.Fatalf("legacy redeem delay not migrated: %#v, %v", redeem, err)
 	}
 }
 
@@ -181,7 +187,7 @@ func TestAccountAutomationSettingsRoundTrip(t *testing.T) {
 	a := Account{
 		Name: "scheduled", Username: "user", DeviceCode: "device", Enabled: true,
 		KeepaliveEnabled: true, KeepaliveMode: KeepaliveScheduled, KeepaliveStart: "22:00", KeepaliveEnd: "06:00", KeepaliveWeekdays: "1,3,5", LoginEnabled: true, LoginCron: "0 2 * * *",
-		PCEnabled: true, PCCron: "5 2 * * *", ChatEnabled: true, ChatCron: "10 2 * * *",
+		PCEnabled: true, PCCron: "5 2 * * *", PCDelayMinutes: 37, ChatEnabled: true, ChatCron: "10 2 * * *", ChatDelayMinutes: 28, LoginDelayMinutes: 19,
 	}
 	id, err := s.SaveAccount(a, "password", []byte("unused"), func(value string, _ []byte) (string, error) { return value, nil })
 	if err != nil {
@@ -191,8 +197,36 @@ func TestAccountAutomationSettingsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !got.KeepaliveEnabled || got.KeepaliveMode != KeepaliveScheduled || got.KeepaliveStart != "22:00" || got.KeepaliveEnd != "06:00" || got.KeepaliveWeekdays != "1,3,5" || !got.LoginEnabled || got.LoginCron != a.LoginCron || got.PCCron != a.PCCron || got.ChatCron != a.ChatCron {
+	if !got.KeepaliveEnabled || got.KeepaliveMode != KeepaliveScheduled || got.KeepaliveStart != "22:00" || got.KeepaliveEnd != "06:00" || got.KeepaliveWeekdays != "1,3,5" || !got.LoginEnabled || got.LoginCron != a.LoginCron || got.PCCron != a.PCCron || got.ChatCron != a.ChatCron || got.LoginDelayMinutes != 19 || got.PCDelayMinutes != 37 || got.ChatDelayMinutes != 28 {
 		t.Fatalf("automation settings were not preserved: %#v", got)
+	}
+	if err = s.SetTaskEnabled(id, "chat", false); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.SetAccountEnabled(id, false); err != nil {
+		t.Fatal(err)
+	}
+	got, err = s.Account(id)
+	if err != nil || got.Enabled || got.ChatEnabled {
+		t.Fatalf("inline enabled state was not preserved: %#v, %v", got, err)
+	}
+}
+
+func TestRedeemRandomDelayRoundTrip(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err = s.DB.Exec("INSERT INTO accounts(name,username,password_encrypted,device_code,created_at,updated_at) VALUES('a','u','p','d','now','now')"); err != nil {
+		t.Fatal(err)
+	}
+	if err = s.SaveRedeem(RedeemConfig{AccountID: 1, MaxTimes: 1, IntervalDays: 1, ScheduleType: "daily", RandomDelayMinutes: 45}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Redeem(1)
+	if err != nil || got.RandomDelayMinutes != 45 {
+		t.Fatalf("redeem random delay = %d, %v", got.RandomDelayMinutes, err)
 	}
 }
 

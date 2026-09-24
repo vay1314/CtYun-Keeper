@@ -20,6 +20,7 @@ type Account struct {
 	Name, Username, PasswordEncrypted, DeviceCode, KeepaliveMode, KeepaliveStart, KeepaliveEnd, KeepaliveWeekdays string
 	LoginCron, ChatCron, PCCron, DeviceStatus                                                                     string
 	Enabled, KeepaliveEnabled, LoginEnabled, ChatEnabled, PCEnabled                                               bool
+	LoginDelayMinutes, ChatDelayMinutes, PCDelayMinutes                                                           int
 }
 
 const (
@@ -117,6 +118,7 @@ type RedeemConfig struct {
 	CostPoints, MaxTimes                           int
 	ScheduleType                                   string
 	IntervalDays                                   int
+	RandomDelayMinutes                             int
 	MonthlyDays                                    string
 	UpdatedAt                                      string
 }
@@ -139,13 +141,13 @@ func Now() string             { return time.Now().Format(time.RFC3339) }
 func (s *Store) Init() error {
 	_, err := s.DB.Exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=30000;
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS accounts(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,username TEXT NOT NULL UNIQUE,password_encrypted TEXT NOT NULL,device_code TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,keepalive_enabled INTEGER NOT NULL DEFAULT 1,keepalive_mode TEXT NOT NULL DEFAULT 'always',keepalive_start TEXT NOT NULL DEFAULT '08:00',keepalive_end TEXT NOT NULL DEFAULT '23:00',keepalive_weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7',login_enabled INTEGER NOT NULL DEFAULT 1,login_cron TEXT NOT NULL DEFAULT '0 3 * * *',chat_enabled INTEGER NOT NULL DEFAULT 1,chat_cron TEXT NOT NULL DEFAULT '10 3 * * *',pc_enabled INTEGER NOT NULL DEFAULT 1,pc_cron TEXT NOT NULL DEFAULT '5 3 * * *',device_status TEXT NOT NULL DEFAULT 'unknown',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS accounts(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,username TEXT NOT NULL UNIQUE,password_encrypted TEXT NOT NULL,device_code TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,keepalive_enabled INTEGER NOT NULL DEFAULT 1,keepalive_mode TEXT NOT NULL DEFAULT 'always',keepalive_start TEXT NOT NULL DEFAULT '08:00',keepalive_end TEXT NOT NULL DEFAULT '23:00',keepalive_weekdays TEXT NOT NULL DEFAULT '1,2,3,4,5,6,7',login_enabled INTEGER NOT NULL DEFAULT 1,login_cron TEXT NOT NULL DEFAULT '0 3 * * *',login_delay_minutes INTEGER NOT NULL DEFAULT 0,chat_enabled INTEGER NOT NULL DEFAULT 1,chat_cron TEXT NOT NULL DEFAULT '10 3 * * *',chat_delay_minutes INTEGER NOT NULL DEFAULT 0,pc_enabled INTEGER NOT NULL DEFAULT 1,pc_cron TEXT NOT NULL DEFAULT '5 3 * * *',pc_delay_minutes INTEGER NOT NULL DEFAULT 0,device_status TEXT NOT NULL DEFAULT 'unknown',created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS task_runs(id INTEGER PRIMARY KEY AUTOINCREMENT,account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,task_type TEXT NOT NULL,trigger_source TEXT NOT NULL,status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT,exit_code INTEGER,log_path TEXT NOT NULL,message TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS scheduler_claims(account_id INTEGER NOT NULL,task_type TEXT NOT NULL,minute_key TEXT NOT NULL,PRIMARY KEY(account_id,task_type,minute_key));
 CREATE TABLE IF NOT EXISTS account_platform_status(account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,total_points INTEGER,tasks_json TEXT NOT NULL DEFAULT '{}',updated_at TEXT NOT NULL,error TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS account_auth_cache(account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,login_info_encrypted TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS account_native_auth_cache(account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,login_info_encrypted TEXT NOT NULL,updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS redeem_configs(account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,enabled INTEGER NOT NULL DEFAULT 0,product_id TEXT NOT NULL DEFAULT '',product_name TEXT NOT NULL DEFAULT '',product_type TEXT NOT NULL DEFAULT '',desktop_id TEXT NOT NULL DEFAULT '',cost_points INTEGER NOT NULL DEFAULT 0,max_times INTEGER NOT NULL DEFAULT 1,schedule_type TEXT NOT NULL DEFAULT 'daily',interval_days INTEGER NOT NULL DEFAULT 1,monthly_days TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS redeem_configs(account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,enabled INTEGER NOT NULL DEFAULT 0,product_id TEXT NOT NULL DEFAULT '',product_name TEXT NOT NULL DEFAULT '',product_type TEXT NOT NULL DEFAULT '',desktop_id TEXT NOT NULL DEFAULT '',cost_points INTEGER NOT NULL DEFAULT 0,max_times INTEGER NOT NULL DEFAULT 1,schedule_type TEXT NOT NULL DEFAULT 'daily',interval_days INTEGER NOT NULL DEFAULT 1,random_delay_minutes INTEGER NOT NULL DEFAULT 0,monthly_days TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS redeem_states(account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,last_attempt_date TEXT NOT NULL DEFAULT '',last_attempt_status TEXT NOT NULL DEFAULT '',last_success_date TEXT NOT NULL DEFAULT '',last_redeem_times INTEGER NOT NULL DEFAULT 0,last_points_spent INTEGER NOT NULL DEFAULT 0,message TEXT NOT NULL DEFAULT '',updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS update_history(id INTEGER PRIMARY KEY AUTOINCREMENT,from_version TEXT NOT NULL,to_version TEXT NOT NULL,platform TEXT NOT NULL,status TEXT NOT NULL,message TEXT NOT NULL DEFAULT '',started_at TEXT NOT NULL,finished_at TEXT);
 CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL);
@@ -175,6 +177,41 @@ CREATE INDEX IF NOT EXISTS idx_task_runs_started_at ON task_runs(started_at DESC
 				if _, e := tx.Exec("ALTER TABLE accounts ADD COLUMN " + migration.name + " " + migration.definition); e != nil {
 					return e
 				}
+			}
+		}
+		var legacyTaskDelayColumn int
+		if e := tx.QueryRow("SELECT COUNT(*) FROM pragma_table_info('accounts') WHERE name='task_delay_minutes'").Scan(&legacyTaskDelayColumn); e != nil {
+			return e
+		}
+		addedTaskDelayColumns := false
+		for _, migration := range []struct{ name, definition string }{
+			{"login_delay_minutes", "INTEGER NOT NULL DEFAULT 0"},
+			{"chat_delay_minutes", "INTEGER NOT NULL DEFAULT 0"},
+			{"pc_delay_minutes", "INTEGER NOT NULL DEFAULT 0"},
+		} {
+			var count int
+			if e := tx.QueryRow("SELECT COUNT(*) FROM pragma_table_info('accounts') WHERE name=?", migration.name).Scan(&count); e != nil {
+				return e
+			}
+			if count == 0 {
+				if _, e := tx.Exec("ALTER TABLE accounts ADD COLUMN " + migration.name + " " + migration.definition); e != nil {
+					return e
+				}
+				addedTaskDelayColumns = true
+			}
+		}
+		if legacyTaskDelayColumn > 0 && addedTaskDelayColumns {
+			if _, e := tx.Exec("UPDATE accounts SET login_delay_minutes=task_delay_minutes,chat_delay_minutes=task_delay_minutes,pc_delay_minutes=task_delay_minutes"); e != nil {
+				return e
+			}
+		}
+		var redeemDelayColumn int
+		if e := tx.QueryRow("SELECT COUNT(*) FROM pragma_table_info('redeem_configs') WHERE name='random_delay_minutes'").Scan(&redeemDelayColumn); e != nil {
+			return e
+		}
+		if redeemDelayColumn == 0 {
+			if _, e := tx.Exec("ALTER TABLE redeem_configs ADD COLUMN random_delay_minutes INTEGER NOT NULL DEFAULT 0"); e != nil {
+				return e
 			}
 		}
 		if _, err = tx.Exec("INSERT OR IGNORE INTO schema_migrations(version,applied_at) VALUES(1,?)", Now()); err != nil {
@@ -220,7 +257,7 @@ func (s *Store) InterruptUnfinishedUpdates() error {
 func scanAccount(r interface{ Scan(...any) error }) (Account, error) {
 	var a Account
 	var en, keepalive, login, ch, pc int
-	e := r.Scan(&a.ID, &a.Name, &a.Username, &a.PasswordEncrypted, &a.DeviceCode, &en, &keepalive, &a.KeepaliveMode, &a.KeepaliveStart, &a.KeepaliveEnd, &a.KeepaliveWeekdays, &login, &a.LoginCron, &ch, &a.ChatCron, &pc, &a.PCCron, &a.DeviceStatus)
+	e := r.Scan(&a.ID, &a.Name, &a.Username, &a.PasswordEncrypted, &a.DeviceCode, &en, &keepalive, &a.KeepaliveMode, &a.KeepaliveStart, &a.KeepaliveEnd, &a.KeepaliveWeekdays, &login, &a.LoginCron, &a.LoginDelayMinutes, &ch, &a.ChatCron, &a.ChatDelayMinutes, &pc, &a.PCCron, &a.PCDelayMinutes, &a.DeviceStatus)
 	a.Enabled = en != 0
 	a.KeepaliveEnabled = keepalive != 0
 	a.LoginEnabled = login != 0
@@ -229,7 +266,7 @@ func scanAccount(r interface{ Scan(...any) error }) (Account, error) {
 	return a, e
 }
 
-const accountCols = "id,name,username,password_encrypted,device_code,enabled,keepalive_enabled,keepalive_mode,keepalive_start,keepalive_end,keepalive_weekdays,login_enabled,login_cron,chat_enabled,chat_cron,pc_enabled,pc_cron,device_status"
+const accountCols = "id,name,username,password_encrypted,device_code,enabled,keepalive_enabled,keepalive_mode,keepalive_start,keepalive_end,keepalive_weekdays,login_enabled,login_cron,login_delay_minutes,chat_enabled,chat_cron,chat_delay_minutes,pc_enabled,pc_cron,pc_delay_minutes,device_status"
 
 func (s *Store) Accounts() ([]Account, error) {
 	rows, e := s.DB.Query("SELECT " + accountCols + " FROM accounts ORDER BY id")
@@ -263,7 +300,7 @@ func (s *Store) SaveAccount(a Account, password string, key []byte, encrypt func
 		if e != nil {
 			return 0, e
 		}
-		r, e := s.DB.Exec(`INSERT INTO accounts(name,username,password_encrypted,device_code,enabled,keepalive_enabled,keepalive_mode,keepalive_start,keepalive_end,keepalive_weekdays,login_enabled,login_cron,chat_enabled,chat_cron,pc_enabled,pc_cron,device_status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'unknown',?,?)`, a.Name, a.Username, enc, a.DeviceCode, a.Enabled, a.KeepaliveEnabled, normalizedKeepaliveMode(a), normalizedKeepaliveStart(a), normalizedKeepaliveEnd(a), normalizedKeepaliveWeekdays(a), a.LoginEnabled, a.LoginCron, a.ChatEnabled, a.ChatCron, a.PCEnabled, a.PCCron, now, now)
+		r, e := s.DB.Exec(`INSERT INTO accounts(name,username,password_encrypted,device_code,enabled,keepalive_enabled,keepalive_mode,keepalive_start,keepalive_end,keepalive_weekdays,login_enabled,login_cron,login_delay_minutes,chat_enabled,chat_cron,chat_delay_minutes,pc_enabled,pc_cron,pc_delay_minutes,device_status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'unknown',?,?)`, a.Name, a.Username, enc, a.DeviceCode, a.Enabled, a.KeepaliveEnabled, normalizedKeepaliveMode(a), normalizedKeepaliveStart(a), normalizedKeepaliveEnd(a), normalizedKeepaliveWeekdays(a), a.LoginEnabled, a.LoginCron, normalizedDelayMinutes(a.LoginDelayMinutes), a.ChatEnabled, a.ChatCron, normalizedDelayMinutes(a.ChatDelayMinutes), a.PCEnabled, a.PCCron, normalizedDelayMinutes(a.PCDelayMinutes), now, now)
 		if e != nil {
 			return 0, e
 		}
@@ -280,8 +317,44 @@ func (s *Store) SaveAccount(a Account, password string, key []byte, encrypt func
 			return 0, e
 		}
 	}
-	_, e = s.DB.Exec(`UPDATE accounts SET name=?,username=?,password_encrypted=?,device_code=?,enabled=?,keepalive_enabled=?,keepalive_mode=?,keepalive_start=?,keepalive_end=?,keepalive_weekdays=?,login_enabled=?,login_cron=?,chat_enabled=?,chat_cron=?,pc_enabled=?,pc_cron=?,device_status=CASE WHEN username<>? OR device_code<>? THEN 'unknown' ELSE device_status END,updated_at=? WHERE id=?`, a.Name, a.Username, enc, a.DeviceCode, a.Enabled, a.KeepaliveEnabled, normalizedKeepaliveMode(a), normalizedKeepaliveStart(a), normalizedKeepaliveEnd(a), normalizedKeepaliveWeekdays(a), a.LoginEnabled, a.LoginCron, a.ChatEnabled, a.ChatCron, a.PCEnabled, a.PCCron, a.Username, a.DeviceCode, now, a.ID)
+	_, e = s.DB.Exec(`UPDATE accounts SET name=?,username=?,password_encrypted=?,device_code=?,enabled=?,keepalive_enabled=?,keepalive_mode=?,keepalive_start=?,keepalive_end=?,keepalive_weekdays=?,login_enabled=?,login_cron=?,login_delay_minutes=?,chat_enabled=?,chat_cron=?,chat_delay_minutes=?,pc_enabled=?,pc_cron=?,pc_delay_minutes=?,device_status=CASE WHEN username<>? OR device_code<>? THEN 'unknown' ELSE device_status END,updated_at=? WHERE id=?`, a.Name, a.Username, enc, a.DeviceCode, a.Enabled, a.KeepaliveEnabled, normalizedKeepaliveMode(a), normalizedKeepaliveStart(a), normalizedKeepaliveEnd(a), normalizedKeepaliveWeekdays(a), a.LoginEnabled, a.LoginCron, normalizedDelayMinutes(a.LoginDelayMinutes), a.ChatEnabled, a.ChatCron, normalizedDelayMinutes(a.ChatDelayMinutes), a.PCEnabled, a.PCCron, normalizedDelayMinutes(a.PCDelayMinutes), a.Username, a.DeviceCode, now, a.ID)
 	return a.ID, e
+}
+
+func normalizedDelayMinutes(value int) int {
+	if value < 0 {
+		return 0
+	}
+	if value > 120 {
+		return 120
+	}
+	return value
+}
+
+func (s *Store) SetAccountEnabled(id int64, enabled bool) error {
+	result, err := s.DB.Exec("UPDATE accounts SET enabled=?,updated_at=? WHERE id=?", enabled, Now(), id)
+	if err != nil {
+		return err
+	}
+	if changed, _ := result.RowsAffected(); changed == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (s *Store) SetTaskEnabled(id int64, taskType string, enabled bool) error {
+	column := map[string]string{"login": "login_enabled", "pc": "pc_enabled", "chat": "chat_enabled"}[taskType]
+	if column == "" {
+		return errors.New("未知任务类型")
+	}
+	result, err := s.DB.Exec("UPDATE accounts SET "+column+"=?,updated_at=? WHERE id=?", enabled, Now(), id)
+	if err != nil {
+		return err
+	}
+	if changed, _ := result.RowsAffected(); changed == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func normalizedKeepaliveMode(a Account) string {
@@ -486,7 +559,7 @@ func (s *Store) ReleaseClaim(id int64, typ, minute string) error {
 func (s *Store) Redeem(id int64) (RedeemConfig, error) {
 	var v RedeemConfig
 	var en int
-	e := s.DB.QueryRow(`SELECT account_id,enabled,product_id,product_name,product_type,desktop_id,cost_points,max_times,schedule_type,interval_days,monthly_days,updated_at FROM redeem_configs WHERE account_id=?`, id).Scan(&v.AccountID, &en, &v.ProductID, &v.ProductName, &v.ProductType, &v.DesktopID, &v.CostPoints, &v.MaxTimes, &v.ScheduleType, &v.IntervalDays, &v.MonthlyDays, &v.UpdatedAt)
+	e := s.DB.QueryRow(`SELECT account_id,enabled,product_id,product_name,product_type,desktop_id,cost_points,max_times,schedule_type,interval_days,random_delay_minutes,monthly_days,updated_at FROM redeem_configs WHERE account_id=?`, id).Scan(&v.AccountID, &en, &v.ProductID, &v.ProductName, &v.ProductType, &v.DesktopID, &v.CostPoints, &v.MaxTimes, &v.ScheduleType, &v.IntervalDays, &v.RandomDelayMinutes, &v.MonthlyDays, &v.UpdatedAt)
 	if errors.Is(e, sql.ErrNoRows) {
 		v.AccountID = id
 		v.ScheduleType = "daily"
@@ -504,7 +577,8 @@ func (s *Store) SaveRedeem(v RedeemConfig) error {
 	if v.IntervalDays < 1 {
 		v.IntervalDays = 1
 	}
-	_, e := s.DB.Exec(`INSERT INTO redeem_configs(account_id,enabled,product_id,product_name,product_type,desktop_id,cost_points,max_times,schedule_type,interval_days,monthly_days,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET enabled=excluded.enabled,product_id=excluded.product_id,product_name=excluded.product_name,product_type=excluded.product_type,desktop_id=excluded.desktop_id,cost_points=excluded.cost_points,max_times=excluded.max_times,schedule_type=excluded.schedule_type,interval_days=excluded.interval_days,monthly_days=excluded.monthly_days,updated_at=excluded.updated_at`, v.AccountID, v.Enabled, v.ProductID, v.ProductName, v.ProductType, v.DesktopID, v.CostPoints, v.MaxTimes, v.ScheduleType, v.IntervalDays, v.MonthlyDays, Now())
+	v.RandomDelayMinutes = normalizedDelayMinutes(v.RandomDelayMinutes)
+	_, e := s.DB.Exec(`INSERT INTO redeem_configs(account_id,enabled,product_id,product_name,product_type,desktop_id,cost_points,max_times,schedule_type,interval_days,random_delay_minutes,monthly_days,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET enabled=excluded.enabled,product_id=excluded.product_id,product_name=excluded.product_name,product_type=excluded.product_type,desktop_id=excluded.desktop_id,cost_points=excluded.cost_points,max_times=excluded.max_times,schedule_type=excluded.schedule_type,interval_days=excluded.interval_days,random_delay_minutes=excluded.random_delay_minutes,monthly_days=excluded.monthly_days,updated_at=excluded.updated_at`, v.AccountID, v.Enabled, v.ProductID, v.ProductName, v.ProductType, v.DesktopID, v.CostPoints, v.MaxTimes, v.ScheduleType, v.IntervalDays, v.RandomDelayMinutes, v.MonthlyDays, Now())
 	return e
 }
 func (s *Store) Debug() string { return fmt.Sprintf("%p", s.DB) }
