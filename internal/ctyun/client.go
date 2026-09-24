@@ -121,6 +121,26 @@ type pointsBalance struct {
 	Points        int    `json:"points"`
 	WillOutDate   bool   `json:"willOutDate"`
 }
+type PointChange struct {
+	Type        int    `json:"type"`
+	Description string `json:"typeDesc"`
+	Value       int    `json:"value"`
+}
+type PointDetail struct {
+	ID        int64         `json:"logId"`
+	Type      int           `json:"msgType"`
+	Remark    string        `json:"remark"`
+	CreatedAt int64         `json:"createDate"`
+	Points    []PointChange `json:"pointsList"`
+}
+type PointDetailPage struct {
+	Page       int           `json:"pageNum"`
+	PageSize   int           `json:"pageSize"`
+	Total      int           `json:"total"`
+	Pages      int           `json:"pages"`
+	IsLastPage bool          `json:"isLastPage"`
+	List       []PointDetail `json:"list"`
+}
 type APIError struct {
 	Code    any
 	Message string

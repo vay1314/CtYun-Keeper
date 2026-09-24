@@ -441,6 +441,22 @@ func (c *NativeClient) Points(ctx context.Context) (int, error) {
 	return mainPointsBalance(values), nil
 }
 
+func (c *NativeClient) PointDetails(ctx context.Context, page, pageSize, messageType int) (PointDetailPage, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 50 {
+		pageSize = 10
+	}
+	query := url.Values{"pageNum": {strconv.Itoa(page)}, "pageSize": {strconv.Itoa(pageSize)}}
+	if messageType >= 1 && messageType <= 3 {
+		query.Set("msgType", strconv.Itoa(messageType))
+	}
+	var out PointDetailPage
+	err := c.marketplace(ctx, http.MethodGet, "/selforder/api/marketing/userPoints/getPointDetailList", query, nil, &out)
+	return out, err
+}
+
 func (c *NativeClient) Rewards(ctx context.Context) ([]Reward, error) {
 	var malls []struct {
 		Series []struct {

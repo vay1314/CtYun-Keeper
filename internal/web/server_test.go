@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vay1314/CtYun-Keeper/internal/ctyun"
 	"github.com/vay1314/CtYun-Keeper/internal/security"
 	"github.com/vay1314/CtYun-Keeper/internal/storage"
 )
@@ -74,6 +75,21 @@ func TestInlineAccountAndTaskToggles(t *testing.T) {
 		if !strings.Contains(task, want) {
 			t.Fatalf("disabled task toggle does not contain %q: %s", want, task)
 		}
+	}
+}
+
+func TestRenderPointDetailsSupportsOfficialFiltersAndPaging(t *testing.T) {
+	content := renderPointDetails(7, 1, ctyun.PointDetailPage{
+		Page: 2, Pages: 3, Total: 24,
+		List: []ctyun.PointDetail{{Type: 1, Remark: `<script>alert(1)</script>`, CreatedAt: 1790190016000, Points: []ctyun.PointChange{{Description: "通用积分", Value: 100}}}},
+	})
+	for _, want := range []string{"全部明细", "积分消耗", "积分收入", "积分过期", "+100 通用积分", "/accounts/7/points/details?type=1&amp;page=1", "/accounts/7/points/details?type=1&amp;page=3"} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("point detail markup does not contain %q: %s", want, content)
+		}
+	}
+	if strings.Contains(content, "<script>") {
+		t.Fatal("point detail remark was not escaped")
 	}
 }
 

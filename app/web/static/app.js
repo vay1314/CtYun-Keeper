@@ -38,6 +38,80 @@ document.addEventListener("click", (event) => {
   input.focus();
 });
 
+let pointsDetailRequest;
+
+const loadPointsDetail = async (dialog, url) => {
+  const body = dialog.querySelector("[data-points-dialog-body]");
+  if (!body) return;
+  pointsDetailRequest?.abort();
+  pointsDetailRequest = new AbortController();
+  body.innerHTML = '<div class="points-detail-loading" role="status">正在查询积分明细...</div>';
+  try {
+    const response = await fetch(url, {
+      headers: { "x-requested-with": "fetch" },
+      signal: pointsDetailRequest.signal,
+    });
+    const content = await response.text();
+    if (!dialog.isConnected) return;
+    body.innerHTML = content || '<div class="points-detail-error" role="alert">积分明细响应为空</div>';
+  } catch (error) {
+    if (error.name !== "AbortError" && dialog.isConnected) {
+      body.innerHTML = '<div class="points-detail-error" role="alert">查询积分明细失败，请稍后重试</div>';
+    }
+  }
+};
+
+const openPointsDetail = (url) => {
+  document.querySelector(".points-detail-dialog")?.remove();
+  const dialog = document.createElement("dialog");
+  dialog.className = "points-detail-dialog";
+  dialog.setAttribute("aria-labelledby", "points-detail-title");
+  dialog.innerHTML = `
+    <div class="points-detail-dialog-head">
+      <h2 id="points-detail-title">积分明细</h2>
+      <button type="button" class="points-detail-close" data-points-detail-close aria-label="关闭积分明细">×</button>
+    </div>
+    <div class="points-detail-dialog-body" data-points-dialog-body></div>`;
+  document.body.append(dialog);
+  dialog.addEventListener("close", () => {
+    pointsDetailRequest?.abort();
+    dialog.remove();
+  }, { once: true });
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog.showModal();
+  dialog.querySelector("[data-points-detail-close]")?.focus();
+  void loadPointsDetail(dialog, url);
+};
+
+document.addEventListener("click", (event) => {
+  const openButton = event.target.closest("[data-points-detail-url]");
+  if (openButton) {
+    openPointsDetail(openButton.dataset.pointsDetailUrl);
+    return;
+  }
+  const closeButton = event.target.closest("[data-points-detail-close]");
+  if (closeButton) {
+    closeButton.closest("dialog")?.close();
+    return;
+  }
+  const pageButton = event.target.closest("[data-points-page-url]");
+  if (pageButton) {
+    const dialog = pageButton.closest("dialog");
+    if (dialog) void loadPointsDetail(dialog, pageButton.dataset.pointsPageUrl);
+  }
+});
+
+document.addEventListener("change", (event) => {
+  const filter = event.target.closest("[data-points-filter]");
+  if (!filter) return;
+  const dialog = filter.closest("dialog");
+  if (!dialog) return;
+  const url = `/accounts/${filter.dataset.accountId}/points/details?type=${encodeURIComponent(filter.value)}&page=1`;
+  void loadPointsDetail(dialog, url);
+});
+
 const syncKeepalivePeriod = (select) => {
   const config = select?.closest(".keepalive-config");
   const period = config?.querySelector("[data-keepalive-period]");

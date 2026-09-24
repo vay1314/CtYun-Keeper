@@ -111,6 +111,29 @@ func TestNativeLoginFetchesCaptchaOnlyWhenRequired(t *testing.T) {
 	}
 }
 
+func TestNativePointDetailsUsesOfficialPagingAndTypeFilter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/selforder/api/marketing/userPoints/getPointDetailList" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Query().Get("pageNum") != "2" || r.URL.Query().Get("pageSize") != "10" || r.URL.Query().Get("msgType") != "2" {
+			t.Fatalf("point detail query = %q", r.URL.RawQuery)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": 0, "data": map[string]any{
+			"pageNum": 2, "pageSize": 10, "total": 11, "pages": 2, "isLastPage": true,
+			"list": []map[string]any{{"logId": 8, "msgType": 2, "remark": "积分兑换", "createDate": 1790190016000, "pointsList": []map[string]any{{"type": 1, "typeDesc": "通用积分", "value": 300}}}},
+		}})
+	}))
+	defer server.Close()
+	client := NewNativeClientWithOptions("user", "password", "device", nil, NativeOptions{APIOrigin: server.URL, MarketplaceOrigin: server.URL, HTTPClient: server.Client()})
+	client.UseProfile(NativeProfile{UserID: 1, UserEID: "eid", TenantID: 2, SecretKey: "secret", CommonLoginReqHeader: "common"})
+	page, err := client.PointDetails(context.Background(), 2, 10, 2)
+	if err != nil || page.Page != 2 || page.Total != 11 || len(page.List) != 1 || page.List[0].Points[0].Value != 300 {
+		t.Fatalf("PointDetails() = %#v, %v", page, err)
+	}
+}
+
 func TestNativeMarketplaceUsesNativeIdentityForWholeFlow(t *testing.T) {
 	fixedNow := time.UnixMilli(1700000005000)
 	orderCalls := 0

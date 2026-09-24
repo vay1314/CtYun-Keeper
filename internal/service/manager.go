@@ -1521,6 +1521,34 @@ func (m *Manager) AccountPoints(ctx context.Context, id int64) (int, error) {
 	return c.Points(ctx)
 }
 
+func (m *Manager) PointDetails(ctx context.Context, id int64, page, messageType int) (ctyun.PointDetailPage, error) {
+	if page < 1 {
+		page = 1
+	}
+	if messageType < 0 || messageType > 3 {
+		return ctyun.PointDetailPage{}, errors.New("积分明细类型无效")
+	}
+	a, err := m.store.Account(id)
+	if err != nil {
+		return ctyun.PointDetailPage{}, err
+	}
+	c, err := m.nativeClient(ctx, a)
+	if err != nil {
+		return ctyun.PointDetailPage{}, err
+	}
+	details, err := c.PointDetails(ctx, page, 10, messageType)
+	if err == nil || !ctyun.IsLoginExpired(err) {
+		return details, err
+	}
+	c.ClearProfile()
+	m.store.ClearNativeAuthCache(id)
+	c, err = m.nativeClient(ctx, a)
+	if err != nil {
+		return ctyun.PointDetailPage{}, err
+	}
+	return c.PointDetails(ctx, page, 10, messageType)
+}
+
 func (m *Manager) ValidateRedeemConfig(ctx context.Context, id int64, cfg storage.RedeemConfig) (storage.RedeemConfig, error) {
 	cfg.AccountID = id
 	if cfg.RandomDelayMinutes < 0 || cfg.RandomDelayMinutes > 120 {

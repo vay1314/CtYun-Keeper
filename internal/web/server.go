@@ -336,7 +336,7 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request, title, content str
 		}
 		nav = `<aside class="sidebar" id="sidebar"><a class="brand" href="/"><span class="brand-mark material-symbols-rounded">cloud_sync</span><span><strong>CtYunKeeper</strong><small>云电脑管理台</small></span></a><nav><span class="nav-section">管理</span><a class="` + navActive(r.URL.Path, "/") + `" href="/"><span class="material-symbols-rounded">dashboard</span><span>仪表盘</span></a><a class="` + navActive(r.URL.Path, "/accounts") + `" href="/accounts"><span class="material-symbols-rounded">manage_accounts</span><span>账号管理</span></a><a class="` + navActive(r.URL.Path, "/tasks") + `" href="/tasks"><span class="material-symbols-rounded">schedule</span><span>任务中心</span></a><span class="nav-section">系统</span><a class="` + navActive(r.URL.Path, "/logs") + `" href="/logs"><span class="material-symbols-rounded">terminal</span><span>日志中心</span></a><a class="` + navActive(r.URL.Path, "/settings") + `" href="/settings"><span class="material-symbols-rounded">settings</span><span>系统设置</span></a></nav><div class="sidebar-foot"><span class="material-symbols-rounded">deployed_code</span><span><span class="sidebar-product-title"><strong>CtYunKeeper</strong>` + s.updateAvailableBadgeSlot("sidebar") + `</span><small>版本 v` + esc(s.version) + `</small></span></div></aside><header class="topbar"><button class="icon-button sidebar-toggle" type="button"><span class="material-symbols-rounded">menu</span></button><strong>天翼云电脑自动化管理</strong><div class="topbar-actions"><button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="切换网页主题"><span class="local-icon theme-icon-moon" aria-hidden="true"></span><span class="local-icon theme-icon-sun" aria-hidden="true"></span></button><a class="icon-button" href="/logs" aria-label="查看日志"><span class="material-symbols-rounded">notifications</span></a><form method="post" action="/ctyun/restart"><input type="hidden" name="csrf_token" value="` + esc(token) + `"><button class="icon-button" aria-label="重新加载保活"><span class="material-symbols-rounded">refresh</span></button></form>` + logoutAction + `</div></header><button class="sidebar-backdrop" type="button"></button>`
 	}
-	fmt.Fprintf(w, "<!doctype html><html lang=zh-CN><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=color-scheme content='light dark'><meta name=csrf-token content='%s'><title>%s · CtYunKeeper</title><script src='/static/theme.js?v=%s-ui25'></script><link rel=stylesheet href='/static/app.css?v=%s-ui25'><script src='/static/htmx.min.js' defer></script><script src='/static/app.js?v=%s-ui25' defer></script></head><body data-authenticated='%t' data-app-version='%s'>%s<main class='%s'>%s%s</main></body></html>", esc(token), esc(title), esc(s.version), esc(s.version), esc(s.version), auth, esc(s.version), nav, mainClass, flash, content)
+	fmt.Fprintf(w, "<!doctype html><html lang=zh-CN><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=color-scheme content='light dark'><meta name=csrf-token content='%s'><title>%s · CtYunKeeper</title><script src='/static/theme.js?v=%s-ui32'></script><link rel=stylesheet href='/static/app.css?v=%s-ui32'><script src='/static/htmx.min.js' defer></script><script src='/static/app.js?v=%s-ui32' defer></script></head><body data-authenticated='%t' data-app-version='%s'>%s<main class='%s'>%s%s</main></body></html>", esc(token), esc(title), esc(s.version), esc(s.version), esc(s.version), auth, esc(s.version), nav, mainClass, flash, content)
 }
 func redirect(w http.ResponseWriter, r *http.Request, path, msg string, isErr bool) {
 	key := "notice"
@@ -809,6 +809,10 @@ func (s *Server) accountRoute(w http.ResponseWriter, r *http.Request) {
 		s.page(w, r, "设备验证", content, true)
 		return
 	}
+	if len(parts) == 4 && parts[2] == "points" && parts[3] == "details" && r.Method == http.MethodGet {
+		s.pointDetails(w, r, id)
+		return
+	}
 	if len(parts) >= 4 && parts[2] == "tasks" && r.Method == "POST" {
 		if !s.checkCSRF(r) {
 			http.Error(w, "Forbidden", 403)
@@ -840,6 +844,91 @@ func (s *Server) accountRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.NotFound(w, r)
+}
+
+func (s *Server) pointDetails(w http.ResponseWriter, r *http.Request, accountID int64) {
+	if _, err := s.store.Account(accountID); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	page := security.Int(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	messageType := security.Int(r.URL.Query().Get("type"))
+	if messageType < 0 || messageType > 3 {
+		http.Error(w, "积分明细类型无效", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	details, err := s.manager.PointDetails(ctx, accountID, page, messageType)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		fmt.Fprintf(w, `<div class=points-detail-error role=alert>查询积分明细失败：%s</div>`, esc(err.Error()))
+		return
+	}
+	_, _ = io.WriteString(w, renderPointDetails(accountID, messageType, details))
+}
+
+func renderPointDetails(accountID int64, messageType int, page ctyun.PointDetailPage) string {
+	currentPage := page.Page
+	if currentPage < 1 {
+		currentPage = 1
+	}
+	pages := page.Pages
+	if pages < 1 {
+		pages = 1
+	}
+	var rows strings.Builder
+	for _, item := range page.List {
+		createdAt := "--"
+		if item.CreatedAt > 0 {
+			milliseconds := item.CreatedAt
+			if milliseconds < 1_000_000_000_000 {
+				milliseconds *= 1000
+			}
+			createdAt = time.UnixMilli(milliseconds).Local().Format("2006-01-02 15:04:05")
+		}
+		remark := strings.TrimSpace(item.Remark)
+		if remark == "" {
+			remark = "--"
+		}
+		var changes strings.Builder
+		for _, point := range item.Points {
+			sign := "-"
+			if item.Type == 1 {
+				sign = "+"
+			}
+			value := point.Value
+			if value < 0 {
+				value = -value
+			}
+			description := strings.TrimSpace(point.Description)
+			if description == "" {
+				description = "积分"
+			}
+			fmt.Fprintf(&changes, `<span class="points-change type-%d">%s%d %s</span>`, item.Type, sign, value, esc(description))
+		}
+		if changes.Len() == 0 {
+			changes.WriteString(`<span class=points-change>--</span>`)
+		}
+		fmt.Fprintf(&rows, `<div class=points-detail-row role=row><span title="%s">%s</span><time>%s</time><span>%s</span></div>`, esc(remark), esc(remark), createdAt, changes.String())
+	}
+	if rows.Len() == 0 {
+		rows.WriteString(`<div class=points-detail-empty>暂无数据</div>`)
+	}
+	baseURL := fmt.Sprintf("/accounts/%d/points/details?type=%d&amp;page=", accountID, messageType)
+	previous := ""
+	if currentPage > 1 {
+		previous = fmt.Sprintf(`<button type=button class=secondary data-points-page-url="%s%d">上一页</button>`, baseURL, currentPage-1)
+	}
+	next := ""
+	if !page.IsLastPage && currentPage < pages {
+		next = fmt.Sprintf(`<button type=button class=secondary data-points-page-url="%s%d">下一页</button>`, baseURL, currentPage+1)
+	}
+	return fmt.Sprintf(`<div class=points-detail-toolbar><p>统计近 3 个月积分，每月 1 日 0 点清零过期积分</p><label><span class=visually-hidden>明细类型</span><select data-points-filter data-account-id="%d"><option value=0%s>全部明细</option><option value=2%s>积分消耗</option><option value=1%s>积分收入</option><option value=3%s>积分过期</option></select></label></div><div class=points-detail-table role=table><div class=points-detail-table-head role=row><span>详情说明</span><span>时间</span><span>积分变化</span></div>%s</div><div class=points-detail-pagination>%s<span>第 %d / %d 页 · 共 %d 条</span>%s</div>`, accountID, selected(messageType == 0), selected(messageType == 2), selected(messageType == 1), selected(messageType == 3), rows.String(), previous, currentPage, pages, page.Total, next)
 }
 
 func initial(v string) string {
@@ -875,7 +964,7 @@ func (s *Server) taskCards(w http.ResponseWriter, r *http.Request) {
 			updatedText = "上次查询于 " + formatTime(p.UpdatedAt) + " · 今日待更新"
 		}
 		accountState := map[bool]string{true: "success", false: "stopped"}[a.Enabled]
-		fmt.Fprintf(&b, `<article class="panel launch-card platform-card"><div class=platform-card-head><div class=platform-account><span class=account-avatar>%s</span><span><strong>%s</strong><small><i class="account-state-dot %s"></i>%s</small></span></div><div class=points-summary><small>%s</small><strong>%s</strong></div></div><div class=platform-task-grid>`, esc(initial(a.Name)), esc(a.Name), accountState, map[bool]string{true: "账号启用", false: "账号停用"}[a.Enabled], pointsLabel, points)
+		fmt.Fprintf(&b, `<article class="panel launch-card platform-card"><div class=platform-card-head><div class=platform-account><span class=account-avatar>%s</span><span><strong>%s</strong><small><i class="account-state-dot %s"></i>%s</small></span></div><div class=platform-points><div class=points-summary><strong>%s</strong><small>%s</small></div><button type=button class=points-detail-button data-points-detail-url="/accounts/%d/points/details"><span>积分明细</span><span class=points-detail-arrow aria-hidden=true>›</span></button></div></div><div class=platform-task-grid>`, esc(initial(a.Name)), esc(a.Name), accountState, map[bool]string{true: "账号启用", false: "账号停用"}[a.Enabled], points, pointsLabel, a.ID)
 		for _, x := range []struct{ k, n string }{{"login", "登录 AI 云电脑"}, {"usage", "使用 1 小时"}, {"chat", "AI 对话"}} {
 			t, ok := p.Tasks[x.k]
 			if !fresh {
@@ -892,7 +981,7 @@ func (s *Server) taskCards(w http.ResponseWriter, r *http.Request) {
 			}
 			fmt.Fprintf(&b, `<div class="platform-task %s"><div class=platform-task-top><span class=platform-task-name>%s</span><span class="pill %s">%s</span></div><div class=platform-progress><span style="width:%d%%"></span></div><small>进度 %d/%d</small></div>`, esc(t.State), x.n, esc(t.State), esc(t.StateLabel), progress, t.Current, t.Total)
 		}
-		fmt.Fprintf(&b, `</div><div class="platform-updated%s"><span class="material-symbols-rounded">schedule</span>%s</div><div class=launch-actions><form method=post action="/accounts/%d/tasks/login"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=secondary%s>%s<span>登陆任务</span></button></form><form method=post action="/accounts/%d/tasks/pc"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=primary%s>%s<span>时长任务</span></button></form><form method=post action="/accounts/%d/tasks/chat"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=secondary%s>%s<span>AI对话任务</span></button></form><form method=post action="/accounts/%d/platform-status/refresh"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=secondary%s>%s<span>任务状态查询</span></button></form></div></article>`, updatedClass, esc(updatedText), a.ID, disabled(!a.Enabled), buttonIcon("login"), a.ID, disabled(!a.Enabled), buttonIcon("usage"), a.ID, disabled(!a.Enabled), buttonIcon("chat"), a.ID, disabled(!a.Enabled), buttonIcon("status"))
+		fmt.Fprintf(&b, `</div><div class="platform-updated%s"><span class="material-symbols-rounded">schedule</span>%s</div><div class=launch-actions><form method=post action="/accounts/%d/tasks/login"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=secondary%s>%s<span>登陆任务</span></button></form><form method=post action="/accounts/%d/tasks/pc"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=secondary%s>%s<span>时长任务</span></button></form><form method=post action="/accounts/%d/tasks/chat"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=secondary%s>%s<span>AI对话任务</span></button></form><form method=post action="/accounts/%d/platform-status/refresh"><input type=hidden name=csrf_token value="{{CSRF}}"><button class=secondary%s>%s<span>任务状态查询</span></button></form></div></article>`, updatedClass, esc(updatedText), a.ID, disabled(!a.Enabled), buttonIcon("login"), a.ID, disabled(!a.Enabled), buttonIcon("usage"), a.ID, disabled(!a.Enabled), buttonIcon("chat"), a.ID, disabled(!a.Enabled), buttonIcon("status"))
 	}
 	if len(accounts) == 0 {
 		b.WriteString(`<article class="panel task-empty-card"><span class="material-symbols-rounded">manage_accounts</span><div class=task-empty-copy><strong>还没有可运行的账号</strong><p>添加账号后，即可在这里查看每日任务状态并快速执行任务。</p></div><a class="secondary button" href=/accounts/new>添加账号</a></article>`)
