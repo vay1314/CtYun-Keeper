@@ -519,6 +519,11 @@ html[data-theme="dark"] .update-status.error { background: var(--red-soft); }
 html[data-theme="dark"] .update-progress-state { background: #172439; }
 
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+@media (min-width: 761px) {
+  .platform-card .launch-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .platform-card .launch-actions form { min-width: 0; }
+  .platform-card .launch-actions button { width: 100%; min-width: 0; padding-inline: 8px; }
+}
 @media (max-width: 1080px) {
   .metric-grid { grid-template-columns: 1fr 1fr; }
   .split-grid { grid-template-columns: 1fr; }
