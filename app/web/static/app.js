@@ -118,8 +118,14 @@ const syncRedeemSchedule = (select) => {
   });
 };
 
+const syncRedeemQuantity = (checkbox) => {
+  const input = checkbox.closest("form")?.querySelector('[name="max_times"]');
+  if (input) input.readOnly = checkbox.checked;
+};
+
 document.addEventListener("change", (event) => {
   if (event.target.matches("[data-redeem-schedule]")) syncRedeemSchedule(event.target);
+  if (event.target.matches("[data-redeem-auto-max]")) syncRedeemQuantity(event.target);
 });
 
 const syncKeepalivePeriod = (select) => {
@@ -139,6 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
   syncThemeButton();
   document.querySelectorAll("[data-keepalive-mode]").forEach(syncKeepalivePeriod);
   document.querySelectorAll("[data-redeem-schedule]").forEach(syncRedeemSchedule);
+  document.querySelectorAll("[data-redeem-auto-max]").forEach(syncRedeemQuantity);
   const toggle = document.querySelector(".sidebar-toggle");
   const backdrop = document.querySelector(".sidebar-backdrop");
   const closeSidebar = () => {

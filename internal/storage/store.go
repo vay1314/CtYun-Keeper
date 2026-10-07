@@ -114,6 +114,7 @@ type TaskStatus struct {
 type RedeemConfig struct {
 	AccountID                                      int64
 	Enabled                                        bool
+	AutoMaxQuantity                                bool
 	ProductID, ProductName, ProductType, DesktopID string
 	CostPoints, MaxTimes                           int
 	ScheduleType                                   string
@@ -206,6 +207,15 @@ CREATE INDEX IF NOT EXISTS idx_task_runs_started_at ON task_runs(started_at DESC
 			}
 		}
 		var redeemDelayColumn int
+		var redeemAutoMaxColumn int
+		if e := tx.QueryRow("SELECT COUNT(*) FROM pragma_table_info('redeem_configs') WHERE name='auto_max_quantity'").Scan(&redeemAutoMaxColumn); e != nil {
+			return e
+		}
+		if redeemAutoMaxColumn == 0 {
+			if _, e := tx.Exec("ALTER TABLE redeem_configs ADD COLUMN auto_max_quantity INTEGER NOT NULL DEFAULT 0"); e != nil {
+				return e
+			}
+		}
 		if e := tx.QueryRow("SELECT COUNT(*) FROM pragma_table_info('redeem_configs') WHERE name='random_delay_minutes'").Scan(&redeemDelayColumn); e != nil {
 			return e
 		}
@@ -559,7 +569,7 @@ func (s *Store) ReleaseClaim(id int64, typ, minute string) error {
 func (s *Store) Redeem(id int64) (RedeemConfig, error) {
 	var v RedeemConfig
 	var en int
-	e := s.DB.QueryRow(`SELECT account_id,enabled,product_id,product_name,product_type,desktop_id,cost_points,max_times,schedule_type,interval_days,random_delay_minutes,monthly_days,updated_at FROM redeem_configs WHERE account_id=?`, id).Scan(&v.AccountID, &en, &v.ProductID, &v.ProductName, &v.ProductType, &v.DesktopID, &v.CostPoints, &v.MaxTimes, &v.ScheduleType, &v.IntervalDays, &v.RandomDelayMinutes, &v.MonthlyDays, &v.UpdatedAt)
+	e := s.DB.QueryRow(`SELECT account_id,enabled,product_id,product_name,product_type,desktop_id,cost_points,max_times,auto_max_quantity,schedule_type,interval_days,random_delay_minutes,monthly_days,updated_at FROM redeem_configs WHERE account_id=?`, id).Scan(&v.AccountID, &en, &v.ProductID, &v.ProductName, &v.ProductType, &v.DesktopID, &v.CostPoints, &v.MaxTimes, &v.AutoMaxQuantity, &v.ScheduleType, &v.IntervalDays, &v.RandomDelayMinutes, &v.MonthlyDays, &v.UpdatedAt)
 	if errors.Is(e, sql.ErrNoRows) {
 		v.AccountID = id
 		v.ScheduleType = "daily"
@@ -578,7 +588,7 @@ func (s *Store) SaveRedeem(v RedeemConfig) error {
 		v.IntervalDays = 1
 	}
 	v.RandomDelayMinutes = normalizedDelayMinutes(v.RandomDelayMinutes)
-	_, e := s.DB.Exec(`INSERT INTO redeem_configs(account_id,enabled,product_id,product_name,product_type,desktop_id,cost_points,max_times,schedule_type,interval_days,random_delay_minutes,monthly_days,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET enabled=excluded.enabled,product_id=excluded.product_id,product_name=excluded.product_name,product_type=excluded.product_type,desktop_id=excluded.desktop_id,cost_points=excluded.cost_points,max_times=excluded.max_times,schedule_type=excluded.schedule_type,interval_days=excluded.interval_days,random_delay_minutes=excluded.random_delay_minutes,monthly_days=excluded.monthly_days,updated_at=excluded.updated_at`, v.AccountID, v.Enabled, v.ProductID, v.ProductName, v.ProductType, v.DesktopID, v.CostPoints, v.MaxTimes, v.ScheduleType, v.IntervalDays, v.RandomDelayMinutes, v.MonthlyDays, Now())
+	_, e := s.DB.Exec(`INSERT INTO redeem_configs(account_id,enabled,product_id,product_name,product_type,desktop_id,cost_points,max_times,auto_max_quantity,schedule_type,interval_days,random_delay_minutes,monthly_days,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET enabled=excluded.enabled,product_id=excluded.product_id,product_name=excluded.product_name,product_type=excluded.product_type,desktop_id=excluded.desktop_id,cost_points=excluded.cost_points,max_times=excluded.max_times,auto_max_quantity=excluded.auto_max_quantity,schedule_type=excluded.schedule_type,interval_days=excluded.interval_days,random_delay_minutes=excluded.random_delay_minutes,monthly_days=excluded.monthly_days,updated_at=excluded.updated_at`, v.AccountID, v.Enabled, v.ProductID, v.ProductName, v.ProductType, v.DesktopID, v.CostPoints, v.MaxTimes, v.AutoMaxQuantity, v.ScheduleType, v.IntervalDays, v.RandomDelayMinutes, v.MonthlyDays, Now())
 	return e
 }
 func (s *Store) Debug() string { return fmt.Sprintf("%p", s.DB) }

@@ -44,7 +44,7 @@ func TestLegacyAccountMigrationEnablesExistingKeepaliveAndLoginTask(t *testing.T
 		t.Fatalf("legacy defaults not migrated: %#v", a)
 	}
 	redeem, err := s.Redeem(1)
-	if err != nil || redeem.RandomDelayMinutes != 0 {
+	if err != nil || redeem.RandomDelayMinutes != 0 || redeem.AutoMaxQuantity {
 		t.Fatalf("legacy redeem delay not migrated: %#v, %v", redeem, err)
 	}
 }
@@ -227,6 +227,26 @@ func TestRedeemRandomDelayRoundTrip(t *testing.T) {
 	got, err := s.Redeem(1)
 	if err != nil || got.RandomDelayMinutes != 45 {
 		t.Fatalf("redeem random delay = %d, %v", got.RandomDelayMinutes, err)
+	}
+}
+
+func TestRedeemAutoMaxQuantityRoundTrip(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if _, err = s.DB.Exec("INSERT INTO accounts(name,username,password_encrypted,device_code,created_at,updated_at) VALUES('a','u','p','d','now','now')"); err != nil {
+		t.Fatal(err)
+	}
+	for _, enabled := range []bool{true, false} {
+		if err = s.SaveRedeem(RedeemConfig{AccountID: 1, MaxTimes: 2, AutoMaxQuantity: enabled, ScheduleType: "daily"}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.Redeem(1)
+		if err != nil || got.AutoMaxQuantity != enabled || got.MaxTimes != 2 {
+			t.Fatalf("redeem = %#v, %v", got, err)
+		}
 	}
 }
 

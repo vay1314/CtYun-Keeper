@@ -15,6 +15,28 @@ import (
 	"github.com/vay1314/CtYun-Keeper/internal/storage"
 )
 
+func TestRedeemQuantity(t *testing.T) {
+	for _, tc := range []struct {
+		name                      string
+		auto                      bool
+		limit, points, cost, want int
+	}{
+		{"manual limit", false, 2, 3600, 1200, 2},
+		{"manual insufficient balance", false, 5, 2100, 1200, 1},
+		{"auto ignores manual limit", true, 1, 3600, 1200, 3},
+		{"auto rounds down", true, 1, 2100, 1200, 1},
+		{"auto insufficient points", true, 1, 1000, 1200, 0},
+		{"invalid cost", true, 1, 2100, 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := redeemQuantity(storage.RedeemConfig{AutoMaxQuantity: tc.auto, MaxTimes: tc.limit}, tc.points, tc.cost)
+			if got != tc.want {
+				t.Fatalf("quantity = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestObserveRedeemResultReportsPointsAndStatistics(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

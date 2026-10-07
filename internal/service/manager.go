@@ -1555,7 +1555,7 @@ func (m *Manager) ValidateRedeemConfig(ctx context.Context, id int64, cfg storag
 		return cfg, errors.New("兑换随机延迟必须在 0 到 120 分钟之间")
 	}
 	if !cfg.Enabled {
-		if cfg.MaxTimes < 1 {
+		if !cfg.AutoMaxQuantity && cfg.MaxTimes < 1 {
 			cfg.MaxTimes = 1
 		}
 		if cfg.IntervalDays < 1 {
@@ -1566,8 +1566,8 @@ func (m *Manager) ValidateRedeemConfig(ctx context.Context, id int64, cfg storag
 		}
 		return cfg, nil
 	}
-	if cfg.MaxTimes < 1 {
-		return cfg, errors.New("单次最多兑换次数必须大于 0")
+	if !cfg.AutoMaxQuantity && cfg.MaxTimes < 1 {
+		return cfg, errors.New("每次最多兑换数量必须大于 0")
 	}
 	switch cfg.ScheduleType {
 	case "daily":
@@ -1593,8 +1593,8 @@ func (m *Manager) ValidateImmediateRedeem(ctx context.Context, id int64, cfg sto
 	if cfg.RandomDelayMinutes < 0 || cfg.RandomDelayMinutes > 120 {
 		return cfg, errors.New("兑换随机延迟必须在 0 到 120 分钟之间")
 	}
-	if cfg.MaxTimes < 1 {
-		return cfg, errors.New("单次最多兑换次数必须大于 0")
+	if !cfg.AutoMaxQuantity && cfg.MaxTimes < 1 {
+		return cfg, errors.New("每次最多兑换数量必须大于 0")
 	}
 	if cfg.ProductID == "" {
 		return cfg, errors.New("立即兑换前必须选择商品")
@@ -1697,10 +1697,7 @@ func (m *Manager) redeem(ctx context.Context, a storage.Account, c *ctyun.Native
 	if found.CostPoints <= 0 {
 		return errors.New("商品积分价格无效")
 	}
-	times := cfg.MaxTimes
-	if possible := points / found.CostPoints; times > possible {
-		times = possible
-	}
+	times := redeemQuantity(cfg, points, found.CostPoints)
 	if times < 1 {
 		return fmt.Errorf("积分不足：当前 %d，需要 %d", points, found.CostPoints)
 	}
@@ -1769,6 +1766,17 @@ func (m *Manager) redeem(ctx context.Context, a storage.Account, c *ctyun.Native
 	}
 	_, stateErr := m.store.DB.Exec(`UPDATE redeem_states SET last_attempt_status=?,last_success_date=CASE WHEN ?='success' THEN ? ELSE last_success_date END,last_redeem_times=?,last_points_spent=?,message=?,updated_at=? WHERE account_id=?`, status, status, today, times, pointsSpent, msg, storage.Now(), a.ID)
 	return errors.Join(e, stateErr)
+}
+
+func redeemQuantity(cfg storage.RedeemConfig, points, cost int) int {
+	if cost <= 0 || points <= 0 {
+		return 0
+	}
+	possible := points / cost
+	if cfg.AutoMaxQuantity {
+		return possible
+	}
+	return min(cfg.MaxTimes, possible)
 }
 
 func observeRedeemResult(ctx context.Context, c *ctyun.NativeClient, reward ctyun.Reward, pointsBefore, pointsSpent, statisticBefore int, hasStatisticSnapshot bool) string {

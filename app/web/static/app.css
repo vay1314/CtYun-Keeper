@@ -254,6 +254,11 @@ legend { padding: 0; margin-bottom: 20px; font-size: 1.06rem; font-weight: 800; 
 .redeem-form-grid { align-items: start; }
 .redeem-form-grid > label { align-content: start; }
 .redeem-form-grid input, .redeem-form-grid select { height: 44px; }
+.redeem-quantity-field { display: grid; gap: 7px; align-content: start; }
+.redeem-quantity-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.redeem-max-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; white-space: nowrap; }
+.redeem-form-grid .redeem-max-toggle input { width: 16px; height: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--blue-strong); }
+.redeem-quantity-field > input[readonly] { background: var(--neutral-soft); color: var(--muted); }
 label { display: grid; gap: 7px; color: #536174; font-size: .88rem; font-weight: 650; }
 label small { color: var(--muted); font-weight: 400; }
 input, select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; outline: none; background: rgba(255, 255, 255, .92); color: var(--text); }
