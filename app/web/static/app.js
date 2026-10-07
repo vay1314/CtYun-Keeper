@@ -112,6 +112,16 @@ document.addEventListener("change", (event) => {
   void loadPointsDetail(dialog, url);
 });
 
+const syncRedeemSchedule = (select) => {
+  select.closest("form")?.querySelectorAll("[data-redeem-schedule-field]").forEach((field) => {
+    field.hidden = field.dataset.redeemScheduleField !== select.value;
+  });
+};
+
+document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-redeem-schedule]")) syncRedeemSchedule(event.target);
+});
+
 const syncKeepalivePeriod = (select) => {
   const config = select?.closest(".keepalive-config");
   const period = config?.querySelector("[data-keepalive-period]");
@@ -128,6 +138,7 @@ document.addEventListener("change", (event) => {
 document.addEventListener("DOMContentLoaded", () => {
   syncThemeButton();
   document.querySelectorAll("[data-keepalive-mode]").forEach(syncKeepalivePeriod);
+  document.querySelectorAll("[data-redeem-schedule]").forEach(syncRedeemSchedule);
   const toggle = document.querySelector(".sidebar-toggle");
   const backdrop = document.querySelector(".sidebar-backdrop");
   const closeSidebar = () => {

@@ -251,6 +251,9 @@ tbody tr:hover { background: rgba(236, 246, 253, .52); }
 fieldset { margin: 0 0 30px; padding: 0 0 30px; border: 0; border-bottom: 1px solid var(--line); }
 legend { padding: 0; margin-bottom: 20px; font-size: 1.06rem; font-weight: 800; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.redeem-form-grid { align-items: start; }
+.redeem-form-grid > label { align-content: start; }
+.redeem-form-grid input, .redeem-form-grid select { height: 44px; }
 label { display: grid; gap: 7px; color: #536174; font-size: .88rem; font-weight: 650; }
 label small { color: var(--muted); font-weight: 400; }
 input, select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; outline: none; background: rgba(255, 255, 255, .92); color: var(--text); }
@@ -269,7 +272,7 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgb
 .keepalive-config { display: grid; gap: 18px; }
 .keepalive-config > label { max-width: 360px; }
 .keepalive-period { display: grid; gap: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 11px; background: rgba(247, 250, 253, .72); }
-.keepalive-period[hidden], [data-keepalive-hint][hidden] { display: none !important; }
+.keepalive-period[hidden], [data-keepalive-hint][hidden], [data-redeem-schedule-field][hidden] { display: none !important; }
 .form-label { display: block; margin-bottom: 9px; color: #536174; font-size: .88rem; font-weight: 650; }
 .weekday-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .weekday-option { position: relative; display: block; cursor: pointer; }
