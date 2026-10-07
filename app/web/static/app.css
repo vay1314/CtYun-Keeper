@@ -405,11 +405,12 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgb
 .live-indicator.snapshot i { box-shadow: 0 0 0 4px rgba(110, 122, 141, .1); }
 pre { height: 58vh; margin: 0; padding: 18px; overflow: auto; border: 1px solid #253248; border-radius: 9px; background: #111827; color: #d5e2ef; font: .84rem/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
 .log-panel pre { height: calc(72vh - 74px); border: 0; border-radius: 0; background: linear-gradient(145deg, #101827, #111c2e); }
-.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: stretch; }
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.settings-left-column { display: grid; gap: 24px; min-width: 0; }
 .settings-card { max-width: none; min-width: 0; padding: 30px; }
-.password-settings-card, .deployment-settings-card { min-height: 500px; }
+.deployment-settings-card { min-height: 500px; }
 .password-settings-card { display: flex; flex-direction: column; }
-.password-change-form { display: flex; flex: 1; flex-direction: column; }
+.password-change-form { display: flex; flex-direction: column; }
 .password-settings-head { justify-content: space-between; }
 .settings-auth-toggle-form { flex: 0 0 210px; width: 210px; margin: 0 0 0 auto; }
 .auth-toggle-button { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px 8px 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--text); background: rgba(247, 250, 253, .9); text-align: left; box-shadow: none; }
@@ -419,7 +420,7 @@ pre { height: 58vh; margin: 0; padding: 18px; overflow: auto; border: 1px solid 
 .auth-switch-control i { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(28, 45, 65, .2); transition: transform .2s ease; }
 .auth-switch-control.active { background: var(--blue-strong); }
 .auth-switch-control.active i { transform: translateX(20px); }
-.log-settings-panel { grid-column: 1 / -1; }
+.log-settings-panel { min-width: 0; }
 .settings-card-head { display: flex; align-items: center; gap: 15px; padding-bottom: 24px; }
 .settings-card-head .panel-icon { flex: 0 0 52px; width: 52px; height: 52px; border-radius: 14px; font-size: 25px; }
 .settings-card-head .panel-icon.neutral { color: #58677a; background: #f1f3f6; }
@@ -433,7 +434,7 @@ pre { height: 58vh; margin: 0; padding: 18px; overflow: auto; border: 1px solid 
 .settings-fields { display: grid; grid-template-columns: 1fr; gap: 16px; }
 .settings-fields label { font-size: .79rem; }
 .settings-hint { margin: 10px 0 16px; color: var(--muted); font-size: .76rem; }
-.settings-primary-action { width: fit-content; align-self: flex-start; margin-top: auto; }
+.settings-primary-action { width: fit-content; align-self: flex-start; margin-top: 0; }
 .deployment-facts { display: grid; gap: 12px; margin: 10px 0 0; }
 .deployment-facts div { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 58px; padding: 14px 17px; border: 1px solid rgba(223, 230, 239, .55); border-radius: 11px; background: #f7f9fb; }
 .deployment-facts dt { color: var(--muted); font-size: .82rem; }
@@ -460,7 +461,7 @@ pre { height: 58vh; margin: 0; padding: 18px; overflow: auto; border: 1px solid 
 .deployment-actions { flex-wrap: wrap; align-items: end; }
 .log-settings-head { padding-bottom: 22px; border-bottom: 1px solid var(--line); }
 .retention-form { padding-top: 22px; }
-.retention-controls { display: grid; grid-template-columns: minmax(240px, 380px) max-content max-content; align-items: end; justify-content: start; gap: 12px; }
+.retention-controls { display: grid; grid-template-columns: minmax(0, 1fr) max-content max-content; align-items: end; justify-content: start; gap: 12px; }
 .retention-save-form { display: contents; }
 .retention-controls form { margin: 0; }
 .retention-controls label { min-width: 0; }
